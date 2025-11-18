@@ -1,120 +1,63 @@
-# 🏛️ AI Museum Curator — Greek Mythology Edition  
-A Streamlit-based interactive web application that uses **MET Museum Open API**, **OpenAI GPT models**, and **art-historical curatorial prompting** to generate museum-quality interpretations of artworks related to **Ancient Greek mythology**.
+# 🏛️ AI Museum Curator — Greek Mythology Edition
 
-This project is developed as part of the course **Arts & Advanced Big Data**, which included five major AI-creative project directions:
+A Streamlit-based interactive web application that uses the MET Museum Open API and GPT-based AI models to generate professional-level curatorial explanations for artworks related to Ancient Greek mythology.
 
-### 📚 Final Project Directions from the Course
-- **AI Museum Curator** (this project)  
-- **Generative AI for Art Creation**  
-- **Multimodal Prompting**  
-- **Art Data Visualization**  
-- **Creative Coding: Generative Poster 2.0**  
-
-This project specifically expands **AI Museum Curator**, combining real museum data with AI-driven curatorial writing and interactive visualization.
+Users can explore mythological figures, view real museum artworks, and receive AI-generated curatorial analyses.
 
 ---
 
-# 🎮 How to Use This App (Quick Start Guide)
+# 🎮 How to Use
 
-1. **Enter a Mythological Keyword**  
-   In the left sidebar, type keywords like:  
-   *“Medusa”, “Athena”, “Apollo”, “Perseus”, “Trojan War”, “Greek vase”, “Heracles”*.
-
-2. **Choose a Mode**  
-   - **Single Artwork** → View one artwork + AI-generated curatorial text  
-   - **Comparative Analysis** → Compare two artworks side-by-side  
-
-3. **Select an Artwork**  
-   - Use *Random selection*, or  
-   - Choose from the list of MET object IDs  
-
-4. **Explore the Artwork**  
-   - High-resolution image  
-   - Artist, Title, Date, Medium, Department  
-   - Full MET Museum metadata  
-
-5. **Generate Curatorial Text**  
-   Click **“Generate Curatorial Text”** to let the AI curator produce:  
-   - Overview  
-   - Historical & artistic context  
-   - Iconography & symbolism  
-   - Gender/power/visual readings (optional)  
-   - Exhibition recommendations  
-
-6. **Comparative Mode (Optional)**  
-   Select two artworks → Click **“Fetch & Compare”**  
-   AI will analyze differences, shared themes, and curatorial pairing strategies.
+1. **Go to the “Greek Myth Explorer” tab**  
+2. Select a mythological figure from the dropdown (e.g., Athena, Medusa)  
+3. Read the AI-generated myth background  
+4. View related artworks fetched from the MET Museum API  
+5. Choose one artwork → switch to **Artwork Viewer** for full analysis  
+6. For two-artwork comparison → use **Comparative Analysis**
 
 ---
 
-# 📘 Project Overview
+# ✨ Features
 
-This application allows users to explore artworks related to Ancient Greek mythology by combining:
+### 🔱 Greek Myth Explorer
+- Dropdown selection (no need for manual input)  
+- AI-generated myth explanation  
+- MET artworks listing  
 
-- **Real museum data** from the MET Museum Open API  
-- **AI-powered curatorial analysis** using OpenAI GPT models  
-- **Interactive UI** built with Streamlit  
-
-Users can search for mythological figures, browse related artworks, and receive structured, academically grounded curatorial texts generated in real time.
-
----
-
-# ✨ Key Features
-
-### 🎨 1. Single Artwork Mode
-- Search MET artworks by keyword  
-- Display full metadata & high-res image  
-- Generate AI-curated analysis:  
+### 🎨 Artwork Viewer
+- High-resolution artwork display  
+- Metadata (title, artist, date, medium)  
+- Curator-style AI analysis:
   - Overview  
-  - Historical & artistic context  
-  - Iconography & symbolic interpretation  
-  - Contemporary relevance  
+  - Historical context  
+  - Iconography & symbolism  
+  - Myth interpretation  
   - Exhibition recommendation  
 
----
+### ⚖️ Comparative Analysis
+- Compare any two MET artworks using Object IDs  
+- AI-generated side-by-side interpretation  
 
-### ⚖️ 2. Comparative Analysis Mode
-Compare two artworks side-by-side with AI commentary on:
-- Composition  
-- Visual differences  
-- Mythological narrative  
-- Material & period  
-- Curatorial pairing recommendation  
-
----
-
-### 🎨 3. Dominant Color Extraction
-Image processing to detect the dominant colors of the artwork.
+### 📚 Course Background Tab
+- Summaries of:
+  - AI Museum Curator  
+  - Generative AI for Art Creation  
+  - Multimodal Prompting  
+  - Art Data Visualization  
+  - Creative Coding: Generative Poster 2.0  
 
 ---
 
-### 🏺 4. Greek Mythology Keyword Search
-Supports terms such as:
-“Medusa”, “Athena”, “Apollo”, “Perseus”, “Dionysus”, “Trojan War”, “Nymphs”, “Satyrs”, “Greek vase painting”.
-
----
-
-# 🧠 Technical Stack
-
-| Component | Description |
-|----------|-------------|
-| **Streamlit** | Interactive web interface |
-| **OpenAI API** | GPT-generated curatorial text |
+# 🧠 Technologies Used
+| Tool | Purpose |
+|------|---------|
+| **Streamlit** | Web interface |
+| **OpenAI API** | Curatorial text generation |
 | **MET Museum API** | Artwork metadata & images |
-| **Python** | Core logic, requests, caching |
-| **Pillow** | Image processing for color extraction |
-
----
-
-# 🔗 MET Museum API
-
-- Search endpoint:  
-  `https://collectionapi.metmuseum.org/public/collection/v1/search?q=QUERY`
-
-- Object details endpoint:  
-  `https://collectionapi.metmuseum.org/public/collection/v1/objects/{objectID}`
+| **Python** | Backend logic |
+| **Pillow** | Image handling |
+| **dotenv** | API key management |
 
 ---
 
 # 📂 Project Structure
-
