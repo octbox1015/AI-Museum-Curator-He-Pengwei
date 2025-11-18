@@ -1,259 +1,230 @@
 import streamlit as st
 import requests
-import openai
 import os
-from io import BytesIO
-from PIL import Image
 from dotenv import load_dotenv
-from collections import Counter
+from PIL import Image
+from io import BytesIO
+import openai
 
-
-# -----------------------------
-# Load OpenAI Key
-# -----------------------------
+# Load API key
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+# ---------- Greek Myth List ----------
+GREEK_MYTH_LIST = [
+    "Zeus", "Hera", "Athena", "Apollo", "Artemis", "Aphrodite",
+    "Hermes", "Dionysus", "Ares", "Poseidon", "Hades",
+    "Medusa", "Perseus", "Achilles", "Heracles", "Odysseus"
+]
 
-# -----------------------------
-# Streamlit Page Setup
-# -----------------------------
-st.set_page_config(
-    page_title="AI Museum Curator — Greek Mythology",
-    page_icon="🏛️",
-    layout="wide"
-)
+# ---------- Functions ----------
 
-
-# -----------------------------
-# Title + Description
-# -----------------------------
-st.title("🏛️ AI Museum Curator — Greek Mythology Edition")
-
-st.markdown("""
-Welcome to **AI Museum Curator — Greek Mythology Edition**, an interactive application that uses:
-
-- **MET Museum Open API**  
-- **OpenAI GPT models**  
-- **Art-historical curatorial writing**  
-
-to generate intelligent, museum-style interpretations of artworks related to **Ancient Greek mythology**.
-
-Explore artworks, compare styles, and discover mythological symbolism through AI-powered curation.
-""")
+def get_myth_background(myth):
+    """Generate myth background using GPT."""
+    prompt = f"""
+    Provide a clear, engaging overview of the Greek mythological figure: {myth}.
+    Include:
+    - Who they are
+    - Major myths
+    - Symbolism
+    - Common artistic representations
+    Write in 3–5 paragraphs.
+    """
+    completion = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return completion.choices[0].message.content
 
 
-# -----------------------------
-# Usage Guide (expandable)
-# -----------------------------
-with st.expander("🎮 **How to Use This App**", expanded=True):
-    st.markdown("""
-### 🔍 1. Enter a Greek Myth Keyword
-Examples: *“Medusa”, “Athena”, “Apollo”, “Perseus”, “Heracles”, “Trojan War”, “Greek vase”*.
-
-### 🖼️ 2. Choose a Mode
-- **Single Artwork** → explore 1 artwork
-- **Comparative Analysis** → compare 2 artworks
-
-### 🎲 3. Select / Randomize
-Use random selection or choose object IDs manually.
-
-### 🧠 4. Generate AI Curatorial Text
-Click:
-- **Generate Curatorial Text**  
-- **Fetch & Compare** (for comparative mode)
-
-### 🎨 5. View Details
-Includes:
-- High-res image  
-- Metadata  
-- Dominant colors  
-- AI analysis  
-""")
-
-
-# -----------------------------
-# Course Background (required)
-# -----------------------------
-st.markdown("""
----
-
-## 📚 Course Background: *Arts & Advanced Big Data*
-
-This project follows one of the five official project directions:
-
-- **AI Museum Curator** *(this project)*
-- **Generative AI for Art Creation**
-- **Multimodal Prompting**
-- **Art Data Visualization**
-- **Creative Coding: Generative Poster 2.0***
-
----
-""")
-
-
-# -----------------------------
-# Sidebar Controls
-# -----------------------------
-st.sidebar.header("🔧 Controls")
-
-mode = st.sidebar.selectbox(
-    "Mode",
-    ["Single Artwork", "Comparative Analysis"]
-)
-
-query = st.sidebar.text_input("Greek Myth Keyword", "Medusa")
-
-randomize = st.sidebar.checkbox("Random Selection", value=True)
-
-
-# -----------------------------
-# MET API functions
-# -----------------------------
-def search_met(query):
+def search_met_api(query):
+    """Search MET API for artworks related to the myth."""
     url = f"https://collectionapi.metmuseum.org/public/collection/v1/search?q={query}"
-    data = requests.get(url).json()
-    return data.get("objectIDs", [])
+    r = requests.get(url).json()
+    return r.get("objectIDs", [])[:20]  # limit for performance
 
 
-def get_artwork(object_id):
+def get_artwork_details(object_id):
+    """Fetch MET artwork details."""
     url = f"https://collectionapi.metmuseum.org/public/collection/v1/objects/{object_id}"
     return requests.get(url).json()
 
 
-def get_dominant_colors(image, num_colors=5):
-    image = image.resize((150, 150))
-    pixels = list(image.getdata())
-    counter = Counter(pixels)
-    return counter.most_common(num_colors)
-
-
-# -----------------------------
-# AI Curator Prompts
-# -----------------------------
-def ai_curate(artwork):
+def generate_art_analysis(metadata):
+    """Generate AI-based curatorial analysis."""
     prompt = f"""
-You are a professional museum curator specializing in Ancient Greek mythology.
+    You are an expert museum curator. Analyze the following artwork in a structured format:
 
-Analyze this artwork:
+    Title: {metadata.get('title')}
+    Artist: {metadata.get('artistDisplayName')}
+    Date: {metadata.get('objectDate')}
+    Medium: {metadata.get('medium')}
+    Culture: {metadata.get('culture')}
+    Period: {metadata.get('period')}
+    Department: {metadata.get('department')}
 
-Title: {artwork.get('title')}
-Artist: {artwork.get('artistDisplayName')}
-Date: {artwork.get('objectDate')}
-Medium: {artwork.get('medium')}
-Culture: {artwork.get('culture')}
-Period: {artwork.get('period')}
+    Provide:
+    1) Overview
+    2) Historical & Artistic Context
+    3) Iconography & Symbolism
+    4) Mythological Interpretation
+    5) Exhibition Recommendation
+    """
 
-Write sections:
-1. Overview  
-2. Historical & artistic context  
-3. Iconography & symbolism  
-4. Mythological narrative interpretation  
-5. Contemporary relevance  
-6. Exhibition recommendation  
-"""
-
-    response = openai.ChatCompletion.create(
+    completion = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}]
     )
+    return completion.choices[0].message.content
 
-    return response["choices"][0]["message"]["content"]
 
-
-def ai_compare(a, b):
+def generate_comparison(meta1, meta2):
+    """Compare two artworks using AI."""
     prompt = f"""
-Compare these two artworks from a curatorial perspective.
+    Compare these two artworks like a museum curator.
 
-ARTWORK A:
-{a.get('title')} ({a.get('objectDate')}) — {a.get('medium')}
+    Artwork A:
+    {meta1.get("title")} — {meta1.get("artistDisplayName")}, {meta1.get("objectDate")}
 
-ARTWORK B:
-{b.get('title')} ({b.get('objectDate')}) — {b.get('medium')}
+    Artwork B:
+    {meta2.get("title")} — {meta2.get("artistDisplayName")}, {meta2.get("objectDate")}
 
-Write:
-1. Comparative overview  
-2. Stylistic differences  
-3. Mythological interpretation  
-4. Shared themes  
-5. Curatorial pairing suggestion  
-"""
-
-    response = openai.ChatCompletion.create(
+    Provide:
+    - Visual composition comparison
+    - Stylistic & material differences
+    - Mythological narrative differences
+    - Symbolism
+    - Curatorial pairing recommendation
+    """
+    completion = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}]
     )
+    return completion.choices[0].message.content
 
-    return response["choices"][0]["message"]["content"]
+
+# ---------- Streamlit App Structure ----------
+
+st.set_page_config(page_title="AI Museum Curator: Greek Myth", layout="wide")
+
+st.title("🏛️ AI Museum Curator — Greek Mythology Edition")
+
+tabs = st.tabs(["Home", "Greek Myth Explorer", "Artwork Viewer", 
+                "Comparative Analysis", "Course Background"])
 
 
-# -----------------------------
-# MAIN: Single Artwork
-# -----------------------------
-if mode == "Single Artwork":
+# ------------------ HOME TAB ------------------
+with tabs[0]:
+    st.header("Welcome to AI Museum Curator")
+    st.markdown("""
+    Explore Ancient Greek mythology through museum artworks and AI-generated curatorial interpretation.
 
-    st.header("🎨 Single Artwork Exploration")
+    ## 🔧 How to Use
+    1. Go to **Greek Myth Explorer**
+    2. Choose a mythological figure
+    3. Read AI-generated myth background
+    4. View related artworks
+    5. Select one → get full curator-style analysis
+    6. For comparison → use **Comparative Analysis**
+    """)
 
-    if st.sidebar.button("Search"):
-        st.session_state.ids = search_met(query)
 
-    ids = st.session_state.get("ids", [])
+# ------------------ MYTH EXPLORER TAB ------------------
+with tabs[1]:
+    st.header("🔱 Greek Myth Explorer")
 
-    if not ids:
-        st.warning("No artworks found.")
+    myth = st.selectbox("Choose a Greek Myth Figure:", GREEK_MYTH_LIST)
+
+    if myth:
+        st.subheader(f"📖 Myth Background: {myth}")
+        with st.spinner("Generating myth interpretation..."):
+            myth_text = get_myth_background(myth)
+        st.write(myth_text)
+
+        st.subheader("🏺 Related Artworks from MET Museum")
+        ids = search_met_api(myth)
+
+        if not ids:
+            st.write("No artworks found.")
+        else:
+            chosen = st.radio("Select an Artwork ID:", ids)
+            st.session_state["selected_artwork"] = chosen
+            st.success("Now go to **Artwork Viewer** to read full analysis.")
+
+
+# ------------------ ARTWORK VIEWER TAB ------------------
+with tabs[2]:
+    st.header("🎨 Artwork Viewer & AI Curatorial Analysis")
+
+    if "selected_artwork" not in st.session_state:
+        st.info("Please choose an artwork from the **Greek Myth Explorer** tab.")
     else:
-        object_id = st.sidebar.selectbox("Select Object ID", ids)
+        art_id = st.session_state["selected_artwork"]
+        metadata = get_artwork_details(art_id)
 
-        artwork = get_artwork(object_id)
+        st.subheader(metadata.get("title", "Untitled"))
+        st.write(f"**Artist:** {metadata.get('artistDisplayName')}")
+        st.write(f"**Date:** {metadata.get('objectDate')}")
+        st.write(f"**Medium:** {metadata.get('medium')}")
+        st.write(f"**Department:** {metadata.get('department')}")
 
-        img_url = artwork.get("primaryImage")
-
+        img_url = metadata.get("primaryImage")
         if img_url:
-            img = Image.open(BytesIO(requests.get(img_url).content))
-            st.image(img, caption=artwork.get("title"), use_column_width=True)
+            img_data = requests.get(img_url).content
+            st.image(Image.open(BytesIO(img_data)), use_column_width=True)
 
-            st.subheader("🎨 Dominant Colors")
-            colors = get_dominant_colors(img)
-            st.write(colors)
-
-        st.subheader("📘 Metadata")
-        st.json(artwork)
-
-        if st.button("Generate Curatorial Text"):
-            with st.spinner("Curating..."):
-                text = ai_curate(artwork)
-            st.subheader("🧠 AI Curatorial Text")
-            st.write(text)
+        st.subheader("🧠 AI Curatorial Analysis")
+        with st.spinner("Generating analysis..."):
+            analysis = generate_art_analysis(metadata)
+        st.write(analysis)
 
 
-# -----------------------------
-# MAIN: Comparative Mode
-# -----------------------------
-else:
+# ------------------ COMPARATIVE ANALYSIS TAB ------------------
+with tabs[3]:
     st.header("⚖️ Comparative Artwork Analysis")
 
-    if st.sidebar.button("Search"):
-        st.session_state.ids = search_met(query)
+    id1 = st.text_input("Artwork A Object ID")
+    id2 = st.text_input("Artwork B Object ID")
 
-    ids = st.session_state.get("ids", [])
+    if st.button("Compare"):
+        meta1 = get_artwork_details(id1)
+        meta2 = get_artwork_details(id2)
 
-    if not ids:
-        st.warning("No artworks found.")
-    else:
-        id_a = st.sidebar.selectbox("Artwork A", ids)
-        id_b = st.sidebar.selectbox("Artwork B", ids)
+        with st.spinner("Generating comparative analysis..."):
+            comp = generate_comparison(meta1, meta2)
 
-        art_a = get_artwork(id_a)
-        art_b = get_artwork(id_b)
+        st.write(comp)
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.image(art_a.get("primaryImage"), caption=art_a.get("title"), use_column_width=True)
-        with col2:
-            st.image(art_b.get("primaryImage"), caption=art_b.get("title"), use_column_width=True)
 
-        if st.button("Fetch & Compare"):
-            with st.spinner("Analyzing..."):
-                result = ai_compare(art_a, art_b)
-            st.subheader("🧠 AI Comparative Curatorial Analysis")
-            st.write(result)
+# ------------------ COURSE BACKGROUND TAB ------------------
+with tabs[4]:
+    st.header("📚 Course Background")
+    st.markdown("""
+    ## AI Museum Curator  
+    - Goal: Web app that fetches museum artwork data and generates curator-level interpretations  
+    - How it works: Metadata → Curator Prompt → Streamlit Display  
+
+    ---
+
+    ## Generative AI for Art Creation  
+    - Goal: Create AI-generated artworks (images/music/text)  
+    - How it works: Model → Prompt → Portfolio  
+
+    ---
+
+    ## Multimodal Prompting  
+    - Combine images + text  
+    - AI performs visual analysis and generates code  
+
+    ---
+
+    ## Art Data Visualization  
+    - Collect and analyze datasets  
+    - Build dashboards using Plotly  
+
+    ---
+
+    ## Creative Coding — Generative Poster 2.0  
+    - Use Python to generate posters  
+    - AI gives design suggestions  
+    """)
