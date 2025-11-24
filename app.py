@@ -5,20 +5,24 @@ import os
 from dotenv import load_dotenv
 from PIL import Image
 from io import BytesIO
-import openai
-import base64
-from typing import List, Dict
+from typing import List, Dict, Optional
 
-# Load environment
+# Use modern OpenAI client
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None  # will check later
+
 load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-openai.api_key = OPENAI_API_KEY
 
-# Page config
+# ---------- Config ----------
 st.set_page_config(page_title="AI Museum Curator — Greek Myth", layout="wide")
 st.title("🏛️ AI Museum Curator — Greek Mythology Edition")
 
-# ---------- Constants ----------
+MET_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search"
+MET_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects/{}"
+
+# Comprehensive myth list (Option A)
 MYTH_LIST = [
     "Zeus", "Hera", "Athena", "Apollo", "Artemis", "Aphrodite",
     "Hermes", "Dionysus", "Ares", "Hephaestus", "Poseidon", "Hades",
@@ -27,27 +31,41 @@ MYTH_LIST = [
     "Medusa", "Minotaur", "Sirens", "Cyclops", "Centaur"
 ]
 
+# Small set of short fixed bios (stable offline)
 FIXED_BIOS = {
-    "Athena": "Athena (Pallas Athena) is the goddess of wisdom, craft, and strategic warfare. She is often depicted armored with a helmet, spear, and the aegis; her symbol is the owl.",
     "Zeus": "Zeus is the king of the Olympian gods, ruler of the sky and thunder. Often shown with a thunderbolt and eagle.",
-    "Medusa": "Medusa is one of the Gorgons—monstrous female figures whose gaze turns viewers to stone. Her image functions as protection and warning.",
-    "Perseus": "Perseus is the hero who beheaded Medusa and rescued Andromeda, often shown with winged sandals and a reflective shield.",
-    "Aphrodite": "Aphrodite is the goddess of love and beauty, frequently represented in nudity or semi-nudity and associated with the sea and doves."
+    "Athena": "Athena (Pallas Athena) is the goddess of wisdom, craft, and strategic warfare; often depicted armed with helmet, spear, and aegis; symbol: owl.",
+    "Medusa": "Medusa is one of the Gorgons—monstrous female figures whose gaze turns viewers to stone. Her image is used as protective apotropaic symbol.",
+    "Perseus": "Perseus is the hero who beheaded Medusa and rescued Andromeda; often shown with winged sandals and a reflective shield.",
+    "Aphrodite": "Aphrodite is the goddess of love and beauty, frequently represented with seashells or in semi-nude figure; associated with desire."
 }
 
-MET_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search"
-MET_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects/{}"
+# ---------- Utilities ----------
+def get_openai_client() -> Optional[OpenAI]:
+    """Return an OpenAI client using session key or environment key; None if not available."""
+    key = st.session_state.get("USER_OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
+    if not key:
+        return None
+    if OpenAI is None:
+        return None
+    try:
+        return OpenAI(api_key=key)
+    except Exception:
+        # fallback: try without explicit api_key if environment variable present
+        try:
+            return OpenAI()
+        except Exception:
+            return None
 
-# ---------- Helpers ----------
-def met_search_ids(query: str, max_results: int = 20) -> List[int]:
+def met_search_ids(query: str, max_results: int = 15) -> List[int]:
     try:
         params = {"q": query, "hasImages": True}
         r = requests.get(MET_SEARCH, params=params, timeout=10)
         r.raise_for_status()
-        ids = r.json().get("objectIDs") or []
+        data = r.json()
+        ids = data.get("objectIDs") or []
         return ids[:max_results]
-    except Exception as e:
-        st.error(f"MET search failed: {e}")
+    except Exception:
         return []
 
 def met_get_object(object_id: int) -> Dict:
@@ -55,11 +73,10 @@ def met_get_object(object_id: int) -> Dict:
         r = requests.get(MET_OBJECT.format(object_id), timeout=10)
         r.raise_for_status()
         return r.json()
-    except Exception as e:
-        st.error(f"Failed to fetch object {object_id}: {e}")
+    except Exception:
         return {}
 
-def fetch_image_from_url(url: str):
+def fetch_image(url: str):
     try:
         r = requests.get(url, timeout=10)
         r.raise_for_status()
@@ -69,125 +86,123 @@ def fetch_image_from_url(url: str):
 
 def generate_aliases(name: str) -> List[str]:
     aliases = [name]
-    if name == "Athena":
-        aliases += ["Pallas Athena", "Minerva"]
-    if name == "Zeus":
-        aliases += ["Jupiter"]
-    if name == "Aphrodite":
-        aliases += ["Venus"]
-    if name == "Hermes":
-        aliases += ["Mercury"]
-    if name == "Medusa":
-        aliases += ["Gorgon"]
+    mapping = {
+        "Athena": ["Pallas Athena","Minerva"],
+        "Zeus": ["Jupiter"],
+        "Aphrodite": ["Venus"],
+        "Hermes": ["Mercury"],
+        "Medusa": ["Gorgon"],
+        "Perseus": ["Perseus (hero)"]
+    }
+    if name in mapping:
+        aliases = mapping[name] + aliases
     aliases += [f"{name} Greek", f"{name} myth"]
     return list(dict.fromkeys(aliases))
 
-# ---------- OpenAI wrappers ----------
-def chat_completion(prompt: str, system: str = None, max_tokens: int = 600):
-    messages = []
-    if system:
-        messages.append({"role":"system","content":system})
-    messages.append({"role":"user","content":prompt})
-    try:
-        resp = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            temperature=0.2,
-            max_tokens=max_tokens
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception as e:
-        st.error(f"OpenAI request failed: {e}")
-        return "OpenAI error."
+# ---------- OpenAI-based helpers (modern client) ----------
+def ai_expand_bio(client: OpenAI, name: str, fixed_bio: str) -> str:
+    system = "You are an expert in Greek myth and museum interpretation. Produce a museum-friendly expansion of a short bio."
+    user = f"""Expand this concise bio about "{name}" into a three-paragraph museum-friendly introduction including: who they are, key myths, common artistic depictions, and suggested exhibition context.\n\nBio:\n{fixed_bio}"""
+    resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"system","content":system},{"role":"user","content":user}], temperature=0.2, max_tokens=600)
+    return resp.choices[0].message.content
 
-def expand_bio_with_ai(fixed_bio: str, name: str):
-    system = "You are an expert in Greek myth and museum interpretation. Expand concisely into three museum-friendly paragraphs."
-    prompt = f"""Expand this concise bio about "{name}" into a three-paragraph museum-friendly introduction including: who they are, key myths, common artistic depictions, and suggestions for exhibition context.\n\nBio:\n{fixed_bio}"""
-    return chat_completion(prompt, system=system, max_tokens=500)
+def ai_identify_deity(client: OpenAI, description: str) -> str:
+    system = "You are an expert in Greek mythology and visual iconography."
+    user = f"""Identify which Greek deity, hero, or creature is most likely referenced by this single-sentence description: "{description}".
+Return a short answer with:
+1) The best-fit name (one line).
+2) A 2-3 sentence explanation linking visual cues to the deity/hero.
+3) Two brief keywords the app can use to search museum collections for artworks (comma-separated)."""
+    resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"system","content":system},{"role":"user","content":user}], temperature=0.0, max_tokens=250)
+    return resp.choices[0].message.content
 
-def ai_analyze_artwork(metadata: Dict):
+def ai_personality_quiz(client: OpenAI, answers: Dict) -> str:
+    system = "You are an interpretive museum educator who maps personality to mythic figures."
+    user = f"""Given these short answers, determine the best-fit Greek deity/hero and provide: 1) the deity name, 2) a short psychological explanation (3-4 sentences), 3) three suggested keywords for searching related artworks. Answers: {answers}"""
+    resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"system","content":system},{"role":"user","content":user}], temperature=0.2, max_tokens=400)
+    return resp.choices[0].message.content
+
+def ai_art_analysis(client: OpenAI, metadata: Dict) -> str:
+    system = "You are an art historian and museum curator."
     title = metadata.get("title","Untitled")
     artist = metadata.get("artistDisplayName","Unknown")
     date = metadata.get("objectDate","?")
-    medium = metadata.get("medium","?")
-    url = metadata.get("objectURL","")
-    prompt = f"""You are a museum curator. Analyze the artwork:
-Title: {title}
-Artist: {artist}
-Date: {date}
-Medium: {medium}
-URL: {url}
+    prompt = f"""Provide a short curator-style analysis of this artwork. Title: {title}; Artist: {artist}; Date: {date}; URL: {metadata.get('objectURL','')}. Sections: Overview; Iconography; Historical context; Mythological reading; Exhibition note."""
+    resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"system","content":system},{"role":"user","content":prompt}], temperature=0.2, max_tokens=500)
+    return resp.choices[0].message.content
 
-Provide labeled sections: Overview; Historical & Artistic Context; Iconography & Symbols; Mythological Reading; Exhibition Recommendation."""
-    return chat_completion(prompt, max_tokens=700)
-
-def ai_detail_symbolism(question: str, metadata: Dict):
-    prompt = f"""A visitor asked: "{question}" about this artwork. Metadata: Title: {metadata.get('title')}; Artist: {metadata.get('artistDisplayName')}; Date: {metadata.get('objectDate')}. Provide a short curator response explaining the visual detail's possible symbolic meanings, and note if the interpretation is speculative."""
-    return chat_completion(prompt, max_tokens=350)
-
-def ai_style_match_from_image(user_text: str, img_bytes_b64: str):
-    # We will use textual description + optional user sketch text to produce a style-match reply.
-    prompt = f"""Given this user text describing an uploaded image/sketch: "{user_text}". The app also has the uploaded image (base64 provided). Without seeing the image here, provide guidance on which period or style of ancient Greek art the sketch most resembles (e.g., Archaic black-figure vase painting, Classical marble sculpture, Hellenistic dynamic composition). Explain key visual clues to look for and give a probable classification and short suggestion for attribution practice."""
-    return chat_completion(prompt, max_tokens=500)
-
-def ai_myth_identifier(description: str):
-    prompt = f"""A user describes a scene in one sentence: "{description}". Identify which Greek deity/hero/creature is most likely referenced, explain why (visual cues or motifs), and suggest 2 related MET artworks to search for with short justification."""
-    return chat_completion(prompt, max_tokens=400)
-
-def ai_personality_quiz_responses(answers: Dict):
-    # build narrative
-    prompt = f"""Based on these short answers, determine which Greek god/hero the user most resembles. Answers: {answers}\nProvide: 1) a best-fit deity, 2) a short psychological explanation, 3) 3 recommended artworks (by theme) and why."""
-    return chat_completion(prompt, max_tokens=500)
-
-def generate_image_from_prompt(prompt_text: str, size: str = "1024x1024"):
-    try:
-        resp = openai.Image.create(
-            prompt=prompt_text,
-            n=1,
-            size=size
-        )
-        img_b64 = resp['data'][0]['b64_json']
-        img_bytes = base64.b64decode(img_b64)
-        return Image.open(BytesIO(img_bytes))
-    except Exception as e:
-        st.error(f"Image generation failed: {e}")
-        return None
-
-# ---------- Layout: tabs ----------
-tabs = st.tabs(["Home", "Greek Deities", "Works & Analysis", "Compare", "Interactive Art Zone", "Course Materials"])
-
-# HOME
-with tabs[0]:
-    st.header("Welcome")
+# ---------- UI: Home (with API key input, tutorial, sources) ----------
+def render_home():
+    st.header("Home — How to use this site")
     st.markdown("""
-Explore Greek gods, heroes, and mythic creatures via real museum artworks and AI-powered curatorial interpretation.
-**Interactive Art Zone** contains hands-on tools: detail analysis, style-matching (user uploads), myth ID, personality quiz, and image generation.
-    """)
+**This site lets you explore Greek gods, heroes, and mythic creatures through museum artworks and AI-curated interpretation.**
 
-# GREEK DEITIES
-with tabs[1]:
+**Important:** To use AI features (expanded bios, deity identification, personality quiz, curator analysis), enter your OpenAI API key below or set environment variable `OPENAI_API_KEY`.  
+(Your key is stored only in this session and not sent anywhere else.)
+    """)
+    # API key input
+    col_api, col_blank = st.columns([2,5])
+    with col_api:
+        key_input = st.text_input("Enter your OpenAI API Key (sk-...)", type="password", key="api_input")
+        if st.button("Save API Key"):
+            if key_input.strip():
+                st.session_state["USER_OPENAI_KEY"] = key_input.strip()
+                st.success("OpenAI API Key saved for this session.")
+            else:
+                st.error("Please enter a valid key.")
+        if st.session_state.get("USER_OPENAI_KEY"):
+            st.info("AI is enabled for this session.")
+    # Step-by-step quick guide
+    st.markdown("## Quick start")
+    st.markdown("""
+1. Go to **Greek Deities** tab → choose a figure → click **Expand description with AI** (optional).  
+2. Click **Fetch related works** to gather MET artworks.  
+3. Go to **Works & Analysis** → select a thumbnail → click **Generate AI Curatorial Analysis**.  
+4. Try **Interactive Art Zone**: (a) describe a scene to identify the deity; (b) take the personality quiz; (c) ask about visual details.  
+    """)
+    # Sources
+    st.markdown("## Sources & Acknowledgments")
+    st.markdown("""
+- Metropolitan Museum of Art — Open Access API (collectionapi.metmuseum.org)  
+- OpenAI (GPT models) for text generation  
+- Project: AI Museum Curator — Greek Mythology Edition  
+    """)
+    st.markdown("---")
+
+# ---------- UI Layout (Tabs) ----------
+render_home()
+
+tabs = st.tabs(["Greek Deities", "Works & Analysis", "Interactive Art Zone"])
+
+# ---------- Greek Deities tab ----------
+with tabs[0]:
     st.header("Greek Deities / Heroes / Creatures")
-    col1, col2 = st.columns([2,1])
-    with col1:
-        selected = st.selectbox("Choose a figure:", MYTH_LIST)
-        fixed = FIXED_BIOS.get(selected, f"{selected} is a well-known figure in Greek mythology. Typical myths and artistic depictions vary.")
+    colL, colR = st.columns([2,1])
+    with colL:
+        selected = st.selectbox("Choose a figure:", MYTH_LIST, index=MYTH_LIST.index("Zeus"))
+        fixed = FIXED_BIOS.get(selected, f"{selected} is a well-known figure in Greek mythology.")
         st.subheader(f"Short description — {selected}")
         st.write(fixed)
-        if st.button("Expand description with AI"):
-            with st.spinner("Expanding..."):
-                expanded = expand_bio_with_ai(fixed, selected)
-                st.markdown("### AI Expanded Introduction")
-                st.write(expanded)
-                st.session_state["expanded_bio"] = expanded
-                st.session_state["last_bio_for"] = selected
+        st.markdown("**Expand description with AI** (recommended for exhibition-style text)")
+        if st.button("Expand description with AI", key="expand_"+selected):
+            client = get_openai_client()
+            if not client:
+                st.error("No OpenAI API key found. Enter it on Home to enable AI features.")
+            else:
+                with st.spinner("Generating expanded introduction..."):
+                    expanded = ai_expand_bio(client, selected, fixed)
+                    st.markdown("### AI Expanded Introduction")
+                    st.write(expanded)
+                    st.session_state["expanded_bio"] = expanded
+                    st.session_state["last_bio_for"] = selected
         else:
             if st.session_state.get("expanded_bio") and st.session_state.get("last_bio_for") == selected:
                 st.markdown("### AI Expanded Introduction (cached)")
                 st.write(st.session_state["expanded_bio"])
-    with col2:
+    with colR:
         st.subheader("Related search aliases")
         st.write(generate_aliases(selected))
-        if st.button("Fetch related works from MET"):
+        if st.button("Fetch related works from MET", key="fetch_"+selected):
             all_ids = []
             for alias in generate_aliases(selected):
                 ids = met_search_ids(alias, max_results=12)
@@ -195,29 +210,31 @@ with tabs[1]:
                     if i not in all_ids:
                         all_ids.append(i)
             if not all_ids:
-                st.info("No works found.")
+                st.info("No works found for this figure.")
             else:
                 st.success(f"Found {len(all_ids)} candidate works.")
                 st.session_state["related_ids"] = all_ids
+                st.session_state["last_bio_for"] = selected
 
-# WORKS & ANALYSIS
-with tabs[2]:
+# ---------- Works & Analysis tab ----------
+with tabs[1]:
     st.header("Works & Analysis")
     if "related_ids" not in st.session_state:
-        st.info("Fetch related works from the Greek Deities tab first.")
+        st.info("No related works fetched. Go to Greek Deities and click 'Fetch related works from MET'.")
     else:
         ids = st.session_state["related_ids"]
-        st.subheader("Gallery (click to select)")
+        st.subheader("Gallery")
         cols = st.columns(4)
         for idx, oid in enumerate(ids):
             meta = met_get_object(oid)
+            title = meta.get("title","Untitled")
             img_url = meta.get("primaryImageSmall") or meta.get("primaryImage")
             if img_url:
-                img = fetch_image_from_url(img_url)
+                img = fetch_image(img_url)
                 if img:
                     with cols[idx % 4]:
-                        st.image(img.resize((220,220)), caption=f"{meta.get('title')} ({oid})")
-                        if st.button(f"Select {oid}", key=f"sel_{oid}"):
+                        st.image(img.resize((220,220)), caption=f"{title} ({oid})")
+                        if st.button(f"Select {oid}", key=f"select_{oid}"):
                             st.session_state["selected_artwork"] = oid
         if "selected_artwork" in st.session_state:
             art_id = st.session_state["selected_artwork"]
@@ -228,117 +245,145 @@ with tabs[2]:
             st.write(f"**Date:** {meta.get('objectDate') or 'Unknown'}")
             st.write(f"**Medium:** {meta.get('medium') or 'Unknown'}")
             if meta.get("primaryImage"):
-                image = fetch_image_from_url(meta.get("primaryImage"))
+                image = fetch_image(meta.get("primaryImage"))
                 if image:
                     st.image(image, use_column_width=True)
+            st.markdown("**Source / Object URL:**")
+            st.write(meta.get("objectURL") or "N/A")
+            # AI analysis button
+            client = get_openai_client()
             if st.button("Generate AI Curatorial Analysis"):
-                with st.spinner("Generating analysis..."):
-                    analysis = ai_analyze_artwork(meta)
-                    st.markdown("### AI Curatorial Analysis")
-                    st.write(analysis)
+                if not client:
+                    st.error("OpenAI API key required. Add it on Home.")
+                else:
+                    with st.spinner("Generating analysis..."):
+                        analysis = ai_art_analysis(client, meta)
+                        st.markdown("### AI Curatorial Analysis")
+                        st.write(analysis)
 
-# COMPARE
-with tabs[3]:
-    st.header("Compare Two Artworks")
-    id_a = st.text_input("Artwork A Object ID", value=st.session_state.get("selected_artwork",""))
-    id_b = st.text_input("Artwork B Object ID", value="")
-    if st.button("Compare"):
-        if not id_a or not id_b:
-            st.error("Provide both IDs.")
-        else:
-            meta_a = met_get_object(id_a)
-            meta_b = met_get_object(id_b)
-            if meta_a and meta_b:
-                with st.spinner("Comparing..."):
-                    comp = ai_compare_artworks(meta_a, meta_b)
-                    st.markdown("### Comparative Analysis")
-                    st.write(comp)
-
-# INTERACTIVE ART ZONE (C: two categories: Art-based / Myth-based)
-with tabs[4]:
+# ---------- Interactive Art Zone ----------
+with tabs[2]:
     st.header("Interactive Art Zone")
-    st.markdown("Two sections: **Art-based Interactions** and **Myth-based Interactions**")
-    sub = st.radio("Choose interaction category:", ["Art-based", "Myth-based"])
+    st.markdown("Two sections: Art-based interactions (left) and Myth-based interactions (right).")
+    colA, colB = st.columns(2)
 
-    if sub == "Art-based":
+    with colA:
         st.subheader("Art-based Interactions")
-        # ④ Detail Symbolism
-        st.markdown("#### Detail & Symbolism (Ask about a visual detail)")
+        st.markdown("**Detail & Symbolism** — Ask about a visual detail of the selected artwork.")
         if "selected_artwork" not in st.session_state:
-            st.info("Select an artwork in Works & Analysis first to ask about its details.")
+            st.info("Select an artwork in Works & Analysis to use this feature.")
         else:
             meta = met_get_object(st.session_state["selected_artwork"])
-            question = st.text_input("Type a question about a detail in this artwork (e.g., 'What does the owl mean?'):")
-            if st.button("Ask about detail"):
-                with st.spinner("Analyzing detail..."):
-                    answer = ai_detail_symbolism(question, meta)
-                    st.write(answer)
+            question = st.text_input("Ask about a detail (e.g., 'What does the owl symbolize?')", key="detail_q")
+            if st.button("Ask curator about detail"):
+                client = get_openai_client()
+                if not client:
+                    st.error("OpenAI API key required. Add it on Home.")
+                else:
+                    with st.spinner("Analyzing detail..."):
+                        ans = ai_identify_deity(client, question) if False else None
+                        # actually use ai to explain detail
+                        prompt = f"A visitor asked: '{question}' about this artwork. Metadata: Title: {meta.get('title')}; Artist: {meta.get('artistDisplayName')}. Provide a short curator response explaining the visual detail and its possible symbolic meanings."
+                        resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"user","content":prompt}], temperature=0.2, max_tokens=350)
+                        st.write(resp.choices[0].message.content)
 
         st.markdown("---")
-        # ⑤ Style Analyzer (upload sketch)
-        st.markdown("#### Style Analyzer — Upload a sketch/photo")
-        st.write("Upload a simple sketch or photo. The AI will suggest which Greek art style/period it resembles and explain visual clues.")
-        uploaded = st.file_uploader("Upload an image (jpg/png)", type=["png","jpg","jpeg"])
-        user_sketch_note = st.text_input("Optional: Describe your sketch in a few words")
-        if uploaded and st.button("Analyze uploaded sketch"):
-            img = Image.open(uploaded).convert("RGB")
-            st.image(img, caption="Uploaded sketch", use_column_width=False)
-            # convert to base64 to provide context to prompt (not sending binary to model)
-            buffered = BytesIO()
-            img.save(buffered, format="JPEG")
-            b64 = base64.b64encode(buffered.getvalue()).decode()
-            with st.spinner("Analyzing style..."):
-                style_resp = ai_style_match_from_image(user_sketch_note or "User sketch", b64)
-                st.write(style_resp)
-
-    else:
-        st.subheader("Myth-based Interactions")
-        # ⑨ Myth Identifier
-        st.markdown("#### Myth Identifier — Describe a scene in one sentence")
-        desc = st.text_input("Describe a scene or motif (e.g., 'A winged man holding a head and a shield that reflects faces')")
-        if st.button("Identify myth"):
-            with st.spinner("Identifying..."):
-                res = ai_myth_identifier(desc)
-                st.write(res)
-
-        st.markdown("---")
-        # ⑩ Which God Are You? quiz
-        st.markdown("#### Which Greek Deity Are You? — Short quiz")
-        q1 = st.selectbox("In a group project you are:", ["Leader", "Supporter", "Analyst", "Visionary"])
-        q2 = st.selectbox("You value most:", ["Wisdom", "Glory", "Pleasure", "Order"])
-        q3 = st.selectbox("In conflict you tend to:", ["Strategize", "Confront", "Avoid", "Negotiate"])
-        if st.button("Find my deity"):
-            answers = {"q1": q1, "q2": q2, "q3": q3}
-            with st.spinner("Determining..."):
-                profile = ai_personality_quiz_responses(answers)
-                st.write(profile)
-
-        st.markdown("---")
-        # ⑪ Myth Image Generator (DALL·E)
-        st.markdown("#### Myth Image Generator — Describe a scene for AI to illustrate")
-        scene = st.text_area("Describe the mythological scene (style, mood, color, e.g., 'Perseus beheading Medusa, dramatic chiaroscuro, Baroque style')", height=120)
-        size = st.selectbox("Image size", ["512x512","1024x1024"])
-        if st.button("Generate image"):
-            if not scene:
-                st.error("Please describe a scene.")
+        st.subheader("Style Analyzer — Upload a sketch/photo")
+        st.write("Upload a sketch or photo and optionally describe it. The AI will suggest which Greek art style/period it resembles.")
+        uploaded = st.file_uploader("Upload sketch (jpg/png)", type=["jpg","jpeg","png"], key="upload_sketch")
+        sketch_desc = st.text_input("Describe your sketch (optional)", key="sketch_desc")
+        if uploaded and st.button("Analyze sketch"):
+            client = get_openai_client()
+            if not client:
+                st.error("OpenAI API key required.")
             else:
-                with st.spinner("Generating image (this may take a while)..."):
-                    img = generate_image_from_prompt(scene, size=size)
-                    if img:
-                        st.image(img, caption="AI-generated myth scene", use_column_width=True)
-                        # optionally provide download
-                        buf = BytesIO()
-                        img.save(buf, format="PNG")
-                        st.download_button("Download image", data=buf.getvalue(), file_name="myth_scene.png", mime="image/png")
+                img = Image.open(uploaded).convert("RGB")
+                st.image(img, caption="Uploaded sketch", use_column_width=False)
+                # We won't send binary to model; we provide user description and offer visual clues in prompt
+                prompt = f"User uploaded a sketch and described it as: '{sketch_desc}'. Suggest which ancient Greek art style/period it most resembles (Archaic black-figure vase, Classical sculpture, Hellenistic, etc.), explain visual clues to look for, and provide an informal classification."
+                with st.spinner("Analyzing style..."):
+                    resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"user","content":prompt}], temperature=0.2, max_tokens=400)
+                    st.write(resp.choices[0].message.content)
 
-# COURSE MATERIALS
-with tabs[5]:
-    st.header("Course Materials & Slides")
-    st.markdown("Course slides (uploaded):")
-    # Use developer-provided local path; deployment will handle static serving or you can add pdf to repo.
-    st.markdown("[Download / View slides](/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf)")
-    st.markdown("""
-**Notes**
-- The app integrates MET Museum API, OpenAI for text generation and DALL·E for image generation.
-- Be mindful of token usage when generating many AI responses.
+    with colB:
+        st.subheader("Myth-based Interactions")
+        st.markdown("**Describe a scene (one sentence)** → AI identifies the likely deity/hero and explains why, then fetches related artworks.")
+        desc = st.text_input("Describe a scene or motif (e.g., 'A winged man holding a reflective shield')", key="myth_desc")
+        if st.button("Identify deity from description"):
+            client = get_openai_client()
+            if not client:
+                st.error("OpenAI API key required.")
+            else:
+                with st.spinner("Identifying..."):
+                    ident = ai_identify_deity(client, desc)
+                    st.markdown("### AI Identification Result")
+                    st.write(ident)
+                    # Try to extract keywords from AI reply by taking the last line or suggested keywords
+                    # Simple heuristic: search MET using the selected deity or suggested keywords if present
+                    # For robustness, use first token before newline as name candidate
+                    # We'll also set selected figure (best effort)
+                    # Quick attempt: find a name from known MYTH_LIST in the AI reply
+                    chosen_name = None
+                    for name in MYTH_LIST:
+                        if name.lower() in ident.lower():
+                            chosen_name = name
+                            break
+                    if chosen_name:
+                        st.info(f"Selecting {chosen_name} and fetching related works.")
+                        st.session_state["last_bio_for"] = chosen_name
+                        all_ids = []
+                        for alias in generate_aliases(chosen_name):
+                            ids = met_search_ids(alias, max_results=10)
+                            for i in ids:
+                                if i not in all_ids:
+                                    all_ids.append(i)
+                        if all_ids:
+                            st.session_state["related_ids"] = all_ids
+                            st.success(f"Found {len(all_ids)} works for {chosen_name}. Go to Works & Analysis to browse.")
+                        else:
+                            st.info("No related works found automatically.")
+                    else:
+                        st.info("Could not confidently map to a single known figure. Please try a different description.")
+
+        st.markdown("---")
+        st.subheader("Which Greek Deity Are You? — Personality Quiz")
+        st.write("Answer three short questions and let the AI map your personality to a Greek deity or hero.")
+        q1 = st.selectbox("In a group project you are:", ["Leader", "Supporter", "Analyst", "Visionary"], key="quiz_q1")
+        q2 = st.selectbox("You value most:", ["Wisdom", "Glory", "Pleasure", "Order"], key="quiz_q2")
+        q3 = st.selectbox("In conflict you tend to:", ["Strategize", "Confront", "Avoid", "Negotiate"], key="quiz_q3")
+        if st.button("Find my deity"):
+            client = get_openai_client()
+            if not client:
+                st.error("OpenAI API key required.")
+            else:
+                with st.spinner("Mapping persona to deity..."):
+                    answers = {"q1": q1, "q2": q2, "q3": q3}
+                    profile = ai_personality_quiz(client, answers)
+                    st.markdown("### Your Mythic Match")
+                    st.write(profile)
+                    # Attempt to fetch related works for suggested deity if name appears
+                    for name in MYTH_LIST:
+                        if name.lower() in profile.lower():
+                            st.session_state["last_bio_for"] = name
+                            # fetch some works
+                            all_ids = []
+                            for alias in generate_aliases(name):
+                                ids = met_search_ids(alias, max_results=8)
+                                for i in ids:
+                                    if i not in all_ids:
+                                        all_ids.append(i)
+                            if all_ids:
+                                st.session_state["related_ids"] = all_ids
+                                st.success(f"Fetched {len(all_ids)} related works for {name} (you can view them in Works & Analysis).")
+                            break
+
+# ---------- Footer: Sources ----------
+st.markdown("---")
+st.markdown("**Sources & Acknowledgments**")
+st.markdown("""
+- MET Museum Open Access API — https://collectionapi.metmuseum.org  
+- OpenAI models (GPT family) for text generation  
+- Project: AI Museum Curator — Greek Mythology Edition
 """)
+# Developer instruction: include uploaded PDF local path as a link
+st.markdown("[Course Slides (provided)](/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf)")
