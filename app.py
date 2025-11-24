@@ -9,6 +9,7 @@ from typing import List, Dict, Tuple
 import math
 import time
 import tempfile
+import re
 
 # visualization libs
 import networkx as nx
@@ -144,7 +145,22 @@ def chat_complete(client, messages, model="gpt-4o-mini", max_tokens=700, tempera
     except Exception as e:
         return f"OpenAI error: {e}"
 
-# simple wrappers for common AI calls (used when client available)
+def image_generate(client, prompt_text, size="1024x1024"):
+    if client is None:
+        return None, "OpenAI key missing"
+    try:
+        try:
+            resp = client.images.generate(prompt=prompt_text, size=size, n=1)
+            b64 = resp.data[0].b64_json
+        except Exception:
+            resp = client.images.create(prompt=prompt_text, size=size, n=1)
+            b64 = resp.data[0].b64_json
+        img = Image.open(BytesIO(base64.b64decode(b64)))
+        return img, None
+    except Exception as e:
+        return None, str(e)
+
+# ---------- Prompts ----------
 def expand_bio_ai(client, name, base):
     system = "You are an expert in Greek mythology and museum interpretation."
     user = f"Expand the short bio of {name} into 3 museum-style paragraphs. Short bio: {base}"
@@ -164,6 +180,35 @@ def generate_iconography(client, meta):
     msg = [{"role":"system","content":"You are an iconography specialist."},
            {"role":"user","content":f"Analyze the mythic iconography for metadata: {meta}."}]
     return chat_complete(client, msg, max_tokens=400)
+
+# wrappers for some interactive AI features
+def ai_answer_detail(client, q, meta):
+    msg = [
+        {"role":"system","content":"You are a museum educator."},
+        {"role":"user","content":f"Question: {q}. Metadata: {meta}"}
+    ]
+    return chat_complete(client, msg, max_tokens=300)
+
+def ai_style_match(client, note):
+    msg = [
+        {"role":"system","content":"You are an art historian."},
+        {"role":"user","content":f"Explain visual style cues for: {note}"}
+    ]
+    return chat_complete(client, msg, max_tokens=400)
+
+def ai_myth_identifier(client, desc):
+    msg = [
+        {"role":"system","content":"You are an expert in Greek myth."},
+        {"role":"user","content":f"Identify the most likely Greek figure for this: '{desc}'."}
+    ]
+    return chat_complete(client, msg, max_tokens=350)
+
+def ai_personality_archetype(client, answers):
+    msg = [
+        {"role":"system","content":"You are a Jungian analyst of Greek myth."},
+        {"role":"user","content":f"Map answers {answers} to a mythic archetype + explanation + artwork themes."}
+    ]
+    return chat_complete(client, msg, max_tokens=450)
 
 # ---------- UI Tabs ----------
 tabs = st.tabs(["Home","Greek Deities","Works & Analysis","Interactive Art Zone","Mythology Network","Artwork Timeline"])
@@ -264,16 +309,20 @@ with tabs[1]:
                 pages = math.ceil(len(thumbs)/per_page)
                 page = st.number_input("Gallery page (Deity)", min_value=1, max_value=max(1,pages), value=1, key="deity_gallery_page")
                 start = (page-1)*per_page
-                for idx, (oid, meta, img) in enumerate(thumbs[start:start+per_page]):
-                    cols = st.columns(4) if idx%4==0 else None
-                # display in a grid: easier to fill in rows of 4
-                cols = st.columns(4)
-                for idx, (oid, meta, img) in enumerate(thumbs[start:start+per_page]):
-                    with cols[idx % 4]:
-                        st.image(img.resize((220,220)), caption=f"{meta.get('title') or meta.get('objectName')} ({oid})")
-                        if st.button("Select", key=f"deity_select_{oid}"):
-                            st.session_state["selected_artwork"] = oid
-                            st.success(f"Selected {oid}. Switch to Works & Analysis tab.")
+                # display in a grid using rows of 4
+                page_items = thumbs[start:start+per_page]
+                rows = math.ceil(len(page_items)/4)
+                for r in range(rows):
+                    cols = st.columns(4)
+                    for c in range(4):
+                        idx = r*4 + c
+                        if idx < len(page_items):
+                            oid, meta, img = page_items[idx]
+                            with cols[c]:
+                                st.image(img.resize((220,220)), caption=f"{meta.get('title') or meta.get('objectName')} ({oid})")
+                                if st.button("Select", key=f"deity_select_{oid}"):
+                                    st.session_state["selected_artwork"] = oid
+                                    st.success(f"Selected {oid}. Switch to Works & Analysis tab.")
 
 # ---------------- WORKS & ANALYSIS ----------------
 with tabs[2]:
@@ -333,7 +382,7 @@ with tabs[2]:
                 st.write("(Enable API Key to generate iconography notes)")
 
             st.markdown("#### Exhibition Notes")
-            st.write("Placement recommendation, related works, label length suggestions (AI when enabled).")
+            st.write("Placement recommendation, related works, and label length suggestions (AI when enabled).")
 
     else:
         st.info("No artwork selected. Go to Greek Deities and fetch/select works. You can also use the gallery below if available.")
@@ -343,13 +392,19 @@ with tabs[2]:
             pages = math.ceil(len(thumbs)/per_page)
             page = st.number_input("Gallery page (Works)", min_value=1, max_value=max(1,pages), value=1, key="wa_gallery_page")
             start = (page-1)*per_page
-            cols = st.columns(4)
-            for idx, (oid, meta, img) in enumerate(thumbs[start:start+per_page]):
-                with cols[idx % 4]:
-                    st.image(img.resize((220,220)), caption=f"{meta.get('title') or meta.get('objectName')} ({oid})")
-                    if st.button("Select", key=f"wa_select_{oid}"):
-                        st.session_state["selected_artwork"] = oid
-                        st.rerun()
+            page_items = thumbs[start:start+per_page]
+            rows = math.ceil(len(page_items)/4)
+            for r in range(rows):
+                cols = st.columns(4)
+                for c in range(4):
+                    idx = r*4 + c
+                    if idx < len(page_items):
+                        oid, meta, img = page_items[idx]
+                        with cols[c]:
+                            st.image(img.resize((220,220)), caption=f"{meta.get('title') or meta.get('objectName')} ({oid})")
+                            if st.button("Select", key=f"wa_select_{oid}"):
+                                st.session_state["selected_artwork"] = oid
+                                st.rerun()
 
 # ---------------- INTERACTIVE ART ZONE ----------------
 with tabs[3]:
@@ -367,8 +422,7 @@ with tabs[3]:
             if st.button("Ask", key="ask_detail"):
                 if client:
                     with st.spinner("Answering..."):
-                        st.write(chat_complete(client, [{"role":"system","content":"You are a museum educator."},
-                                                       {"role":"user","content":f"Question: {q}. Metadata: {meta}"}], max_tokens=300))
+                        st.write(ai_answer_detail(client, q, meta))
                 else:
                     st.error("OpenAI API Key not configured.")
 
@@ -413,7 +467,7 @@ with tabs[3]:
 with tabs[4]:
     st.header("Mythology Relationship Graph")
     st.markdown("Interactive network of selected mythological relationships. Drag nodes to explore connections.")
-    # basic edge list — you can extend this mapping as you wish
+
     relations = [
         ("Zeus","Hera","married"),
         ("Zeus","Athena","father"),
@@ -429,25 +483,21 @@ with tabs[4]:
         ("Odysseus","Athena","favored_by"),
         ("Aphrodite","Eros","mother"),
     ]
+
     G = nx.DiGraph()
     for a,b,rel in relations:
         G.add_node(a)
         G.add_node(b)
         G.add_edge(a,b, label=rel)
 
-    # generate pyvis HTML
-    net = Network(height="600px", width="100%", directed=True)
+    net = Network(height="600px", width="100%", directed=True, notebook=False)
     net.from_nx(G)
-    # style
-    net.repulsion(node_distance=200, central_gravity=0.2)
-    # save temp html and render
-    tmp = tempfile.NamedTemporaryFile(suffix=".html", delete=False)
-    net.show(tmp.name)
-    with open(tmp.name, "r", encoding="utf-8") as f:
-        html_string = f.read()
-    # display embedded
+    net.repulsion(node_distance=180, spring_length=120)
+
+    # Generate HTML safely (no show(), no write_html())
+    html_str = net.generate_html(notebook=False)
     from streamlit.components.v1 import html
-    html(html_string, height=640)
+    html(html_str, height=640, scrolling=True)
 
 # ---------------- ARTWORK TIMELINE ----------------
 with tabs[5]:
@@ -458,35 +508,30 @@ with tabs[5]:
     years = []
     titles = []
     for (oid, meta, img) in thumbs:
-        # prefer objectBeginDate (integer) which MET provides
         y = meta.get("objectBeginDate")
         if isinstance(y, int):
             years.append(y)
             titles.append(meta.get("title") or meta.get("objectName") or str(oid))
         else:
-            # try to parse objectDate if it's like "5th century B.C." (best-effort)
             od = meta.get("objectDate") or ""
             parsed = None
             try:
-                # simple year extraction if present
-                import re
-                m = re.search(r"(-?\d{1,4})", od)
+                m = re.search(r"-?\d{1,4}", od)
                 if m:
-                    parsed = int(m.group(1))
+                    parsed = int(m.group(0))
             except Exception:
                 parsed = None
             if parsed:
                 years.append(parsed)
                 titles.append(meta.get("title") or meta.get("objectName") or str(oid))
+
     if not years:
         st.info("No date information available for the current gallery. Select a deity and fetch works with images.")
     else:
-        # scatter timeline
         df = {"year": years, "title": titles}
         fig = px.scatter(df, x="year", y=[1]*len(years), hover_data=["title"], labels={"x":"Year"})
         fig.update_yaxes(visible=False)
         st.plotly_chart(fig, use_container_width=True)
-        # histogram / distribution
         hist = px.histogram(df, x="year", nbins=20, title="Distribution of object begin dates")
         st.plotly_chart(hist, use_container_width=True)
 
