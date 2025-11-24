@@ -1,41 +1,29 @@
 # 🏛️ AI Museum Curator — Greek Mythology Edition
 
-Interactive Streamlit web app combining MET Museum data with OpenAI to produce curator-level artwork analyses and hands-on interactions.
+Interactive Streamlit web app that connects MET Museum data with OpenAI to create curator-level artwork interpretations and provide a hands-on interactive experience.
 
 ---
 
-## Key updates in this final version
-- Robust MET image loading (primaryImageSmall, primaryImage, additionalImages fallback).  
-- Removed Course Materials tab (cleaner UI).  
-- Added Myth Archetype Matcher (Jungian-style quiz).  
-- Works & Analysis now displays structured museum-like sections (Overview, Context, Iconography, Exhibition Notes).  
-- Home page includes session-only API Key input.
+## Key features (final version)
+- Browse a comprehensive list of Greek gods, heroes, and creatures.  
+- Short human-written bios + AI-expanded museum-style introductions.  
+- Fetch related artworks from the MET API; thumbnails displayed immediately when images accessible.  
+- Works & Analysis: **Selected artwork view** (Gallery hidden when a work is selected), large centered image (approx 600px wide) and structured explanation sections (Identification, Overview, Context, Artistic Features, Iconography, Exhibition Notes).  
+- Interactive Art Zone: detail questions, sketch style hints, myth identifier, Jungian-style Myth Archetype Matcher, image generation.  
+- Home page includes session-only OpenAI API Key input.  
+- Robust MET image fetching (primaryImageSmall → primaryImage → additionalImages).
 
 ---
 
 ## Quick start
 1. Install dependencies: `pip install -r requirements.txt`  
 2. Run: `streamlit run app.py`  
-3. On Home page, paste your OpenAI API Key (session-only) and Save.  
-4. Go to **Greek Deities** → choose figure → Expand with AI (optional) → Fetch related works.  
-5. Go to **Works & Analysis** → select artwork → generate curator analysis.  
-6. Use **Interactive Art Zone** for close-looking, style analysis, archetype quiz, and image generation.
+3. On Home page paste your OpenAI API Key (session-only) and Save (or set `OPENAI_API_KEY` as environment variable / Streamlit Secrets).  
+4. Use **Greek Deities** → select figure → Fetch related works → click a thumbnail → go to **Works & Analysis** to see the selected artwork's page.  
+5. Use **Interactive Art Zone** for close-looking and creative interactions.
 
 ---
 
-## MET slide PDF (reference)
-The app links to a course PDF at:  
-`/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf`  
-(If deploying publicly, include the PDF in repo or host it publicly and update the link.)
-
----
-
-## Requirements
-See `requirements.txt`.
-
----
-
-## Notes
-- AI features require a valid OpenAI API Key with chat & image access.  
-- Image generation consumes credits — test conservatively.
+## Note about the provided course slides
+The app references a course PDF uploaded during development at:
 
