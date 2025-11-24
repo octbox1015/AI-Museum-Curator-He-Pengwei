@@ -1,41 +1,46 @@
 # 🏛️ AI Museum Curator — Greek Mythology Edition
 
-A Streamlit web application that lets users explore Greek gods, heroes, and mythic creatures through real museum artworks (MET Museum API) and AI-generated curatorial texts.
+Interactive Streamlit web app that combines MET Museum data with OpenAI to create curator-quality artwork interpretations and a rich interactive zone.
 
 ---
 
 ## 🎮 Quick Start — How to Use
 
 1. Open the **Greek Deities** tab.  
-2. Select a figure from the dropdown (comprehensive list).  
-3. Read the short fixed bio. Click **"Expand description with AI"** to generate a museum-style introduction.  
-4. Click **"Fetch related works from MET"** to retrieve artworks related to the figure (aliases included).  
-5. Go to **Works & Analysis**, click a thumbnail to select an artwork, and then click **"Generate AI Curatorial Analysis"**.  
-6. To compare two works, use the **Compare** tab and enter MET Object IDs.
+2. Select a figure from the dropdown. Read the short fixed bio. Click **"Expand description with AI"** to get a museum-style introduction.  
+3. Click **"Fetch related works from MET"** to gather candidate artworks.  
+4. Go to **Works & Analysis**, choose a thumbnail, then click **"Generate AI Curatorial Analysis"**.  
+5. Explore **Interactive Art Zone** for hands-on tools:
+   - Detail & Symbolism (ask about visual elements)
+   - Style Analyzer (upload a sketch/photo for style matching)
+   - Myth Identifier (describe a scene to identify the deity)
+   - Which God Are You? (short personality quiz)
+   - Myth Image Generator (AI image from text prompt)
 
 ---
 
-## ✅ Features
+## ✅ Key Features
 
-- Dropdown selection of Greek gods/heroes/creatures (no manual typing).  
-- Fixed short bios + AI expansion for richer myth background.  
-- Automatic MET searches using multiple aliases for better recall.  
-- Thumbnail gallery of related artworks and high-resolution viewer.  
-- AI-generated curator-style analysis with sections: Overview, Context, Iconography, Myth Reading, Exhibition Recommendation.  
-- Two-artwork comparative analysis.  
-- Course materials link to provided slides.
-
-**Course slides (uploaded)**: `/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf`
+- Dropdown selection of Greek figures with fixed bios + AI expansion.  
+- Automatic MET searches using aliases for broader recall.  
+- Thumbnail gallery and high-resolution artwork viewer.  
+- AI-generated curator analyses with structured sections.  
+- Interactive Art Zone with multiple user-facing tools (detail analysis, style-matching, myth ID, personality quiz, DALL·E image generation).
 
 ---
 
 ## 🧠 Technical Stack
 
-- Streamlit (frontend)  
-- OpenAI (curatorial text generation)  
-- MET Museum Open API (art metadata & images)  
-- Python, requests, Pillow, python-dotenv
+- Streamlit (UI)  
+- OpenAI (Chat + Image APIs)  
+- MET Museum Open API (art data)  
+- Python (requests, Pillow, dotenv)
 
 ---
 
-## 📂 Files
+## ⚙️ Setup & Run Locally
+
+1. Create and activate virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate   # or venv\Scripts\activate on Windows
