@@ -1,48 +1,41 @@
 # 🏛️ AI Museum Curator — Greek Mythology Edition
 
-Interactive Streamlit web app that connects MET Museum data with OpenAI to generate curator-level artwork analyses and provide a hands-on interactive experience.
+Interactive Streamlit web app combining MET Museum data with OpenAI to produce curator-level artwork analyses and hands-on interactions.
 
 ---
 
-## 🔎 Key Capabilities (what you get)
-
-- Browse **comprehensive list** of Greek gods, heroes, and creatures.  
-- Read short **human-written bios** and expand them with AI into museum-style introductions.  
-- Fetch **related artworks** from the MET (all object types: sculptures, vases, coins, prints, textiles, painting).  
-- View each object's full metadata and image(s).  
-- Generate structured **AI curator analyses** (Overview; Context; Iconography; Myth reading; Exhibition recommendation).  
-- Interactive Art Zone: ask about image details, upload sketches for style analysis, identify myth from a sentence, take a short "Which Deity Are You?" quiz, and generate AI images of scenes.
+## Key updates in this final version
+- Robust MET image loading (primaryImageSmall, primaryImage, additionalImages fallback).  
+- Removed Course Materials tab (cleaner UI).  
+- Added Myth Archetype Matcher (Jungian-style quiz).  
+- Works & Analysis now displays structured museum-like sections (Overview, Context, Iconography, Exhibition Notes).  
+- Home page includes session-only API Key input.
 
 ---
 
-## 🎮 How to Use (step-by-step)
-
-1. Open **Greek Deities** tab → choose a figure.  
-2. Click **Expand description with AI** for a museum-style intro.  
-3. Click **Fetch related works from MET** to build a candidate list.  
-4. Go to **Works & Analysis** and click a thumbnail to select an object.  
-5. Click **Generate AI Curatorial Analysis** to receive a structured interpretation.  
-6. Go to **Interactive Art Zone** for:
-   - Detail & Symbolism (ask about a motif)  
-   - Style Analyzer (upload a sketch/photo)  
-   - Myth Identifier (describe a scene)  
-   - Which Deity Are You? (quiz)  
-   - Myth Image Generator (AI-generated art)
+## Quick start
+1. Install dependencies: `pip install -r requirements.txt`  
+2. Run: `streamlit run app.py`  
+3. On Home page, paste your OpenAI API Key (session-only) and Save.  
+4. Go to **Greek Deities** → choose figure → Expand with AI (optional) → Fetch related works.  
+5. Go to **Works & Analysis** → select artwork → generate curator analysis.  
+6. Use **Interactive Art Zone** for close-looking, style analysis, archetype quiz, and image generation.
 
 ---
 
-## 🔐 OpenAI API Key (session)
-- Enter your OpenAI API Key on the **Home** page (session-only) to enable AI features.  
-- You may also set `OPENAI_API_KEY` in environment variables or Streamlit Secrets for persistent deployment.
+## MET slide PDF (reference)
+The app links to a course PDF at:  
+`/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf`  
+(If deploying publicly, include the PDF in repo or host it publicly and update the link.)
 
 ---
 
-## 🧰 Installation (local)
+## Requirements
+See `requirements.txt`.
 
-```bash
-git clone https://github.com/your-username/ai-museum-curator-greek-myth
-cd ai-museum-curator-greek-myth
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-streamlit run app.py
+---
+
+## Notes
+- AI features require a valid OpenAI API Key with chat & image access.  
+- Image generation consumes credits — test conservatively.
+
