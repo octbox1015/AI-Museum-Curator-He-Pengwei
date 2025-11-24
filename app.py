@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from PIL import Image
 from io import BytesIO
 import openai
+import base64
 from typing import List, Dict
 
 # Load environment
@@ -14,11 +15,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 
 # Page config
-st.set_page_config(page_title="AI Museum Curator — Greek Mythology", layout="wide")
+st.set_page_config(page_title="AI Museum Curator — Greek Myth", layout="wide")
 st.title("🏛️ AI Museum Curator — Greek Mythology Edition")
 
 # ---------- Constants ----------
-# (Q1: Option A - comprehensive list)
 MYTH_LIST = [
     "Zeus", "Hera", "Athena", "Apollo", "Artemis", "Aphrodite",
     "Hermes", "Dionysus", "Ares", "Hephaestus", "Poseidon", "Hades",
@@ -27,41 +27,30 @@ MYTH_LIST = [
     "Medusa", "Minotaur", "Sirens", "Cyclops", "Centaur"
 ]
 
-# Short fixed bios (Q2 choice: fixed text + AI expansion)
-# Keep these concise; AI will expand them on demand.
 FIXED_BIOS = {
-    "Athena": "Athena (also Pallas Athena) is the Greek goddess of wisdom, craft, and strategic warfare. She is often depicted armored with a helmet, spear, and the aegis; her symbol is the owl. Athena is linked with civic order and heroic endeavor.",
-    "Zeus": "Zeus is the king of the Olympian gods, ruler of the sky and thunder. Often shown with a thunderbolt, eagle, and throne, Zeus appears in many myths concerning divine rule, kingship, and cosmic order.",
-    "Medusa": "Medusa is one of the Gorgons—monstrous female figures whose gaze turns viewers to stone. Her image is frequently used in art to signal danger, protection, or the abject feminine.",
-    "Perseus": "Perseus is the hero who beheaded Medusa and rescued Andromeda; he often appears with winged sandals and the reflective shield used in the Medusa episode.",
-    "Aphrodite": "Aphrodite is the goddess of love, beauty, and desire. She is commonly represented nude or semi-nude and associated with seashells, doves, and erotic themes.",
-    # Add short bios for other items to ensure nicer default display.
-    # For names not in FIXED_BIOS, UI will show a short generic sentence.
+    "Athena": "Athena (Pallas Athena) is the goddess of wisdom, craft, and strategic warfare. She is often depicted armored with a helmet, spear, and the aegis; her symbol is the owl.",
+    "Zeus": "Zeus is the king of the Olympian gods, ruler of the sky and thunder. Often shown with a thunderbolt and eagle.",
+    "Medusa": "Medusa is one of the Gorgons—monstrous female figures whose gaze turns viewers to stone. Her image functions as protection and warning.",
+    "Perseus": "Perseus is the hero who beheaded Medusa and rescued Andromeda, often shown with winged sandals and a reflective shield.",
+    "Aphrodite": "Aphrodite is the goddess of love and beauty, frequently represented in nudity or semi-nudity and associated with the sea and doves."
 }
 
-# MET API endpoints
 MET_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search"
 MET_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects/{}"
 
-# ---------- Helper functions ----------
-
+# ---------- Helpers ----------
 def met_search_ids(query: str, max_results: int = 20) -> List[int]:
-    """Search MET for objectIDs related to query (basic)."""
     try:
         params = {"q": query, "hasImages": True}
         r = requests.get(MET_SEARCH, params=params, timeout=10)
         r.raise_for_status()
-        data = r.json()
-        ids = data.get("objectIDs") or []
-        if not ids:
-            return []
+        ids = r.json().get("objectIDs") or []
         return ids[:max_results]
     except Exception as e:
-        st.error(f"MET search error: {e}")
+        st.error(f"MET search failed: {e}")
         return []
 
 def met_get_object(object_id: int) -> Dict:
-    """Fetch MET object metadata JSON."""
     try:
         r = requests.get(MET_OBJECT.format(object_id), timeout=10)
         r.raise_for_status()
@@ -70,107 +59,16 @@ def met_get_object(object_id: int) -> Dict:
         st.error(f"Failed to fetch object {object_id}: {e}")
         return {}
 
-def fetch_image_from_url(url: str) -> Image.Image:
-    """Download and return PIL Image from URL."""
+def fetch_image_from_url(url: str):
     try:
         r = requests.get(url, timeout=10)
         r.raise_for_status()
         return Image.open(BytesIO(r.content)).convert("RGB")
-    except Exception as e:
-        st.warning("Could not load image.")
+    except Exception:
         return None
 
-def ai_expand_bio(fixed_bio: str, myth_name: str) -> str:
-    """Use OpenAI to expand a fixed bio into a fuller myth background."""
-    system_msg = "You are an expert in Greek myth and art history. Expand concise bios into a 3-paragraph museum-friendly but scholarly introduction."
-    user_prompt = f"""Expand the following concise bio about "{myth_name}" into a clear museum-style introduction. Include:
-- Who they/it is (1 paragraph)
-- Key myths and narrative episodes (1 paragraph)
-- Common artistic depictions and symbolic meanings and suggested exhibition context (1 paragraph)
-
-Concise bio:
-{fixed_bio}
-"""
-    try:
-        resp = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role":"system","content":system_msg},
-                {"role":"user","content":user_prompt}
-            ],
-            temperature=0.2,
-            max_tokens=600
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception as e:
-        st.error(f"AI expansion failed: {e}")
-        return fixed_bio
-
-def ai_generate_art_analysis(metadata: Dict) -> str:
-    """AI: generate curator-level analysis for an artwork (structured)."""
-    title = metadata.get("title", "Untitled")
-    artist = metadata.get("artistDisplayName", "Unknown")
-    date = metadata.get("objectDate", "Unknown date")
-    medium = metadata.get("medium", "Unknown medium")
-    dept = metadata.get("department", "Unknown department")
-    url = metadata.get("objectURL", "")
-    prompt = f"""
-You are a professional museum curator. Provide a structured analysis for the artwork:
-Title: {title}
-Artist: {artist}
-Date: {date}
-Medium: {medium}
-Department: {dept}
-URL: {url}
-
-Output sections labeled: Overview; Historical & Artistic Context; Iconography & Symbols; Mythological Reading; Exhibition Recommendation.
-Write for a general museum audience but include scholarly grounding and note speculative claims.
-"""
-    try:
-        resp = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role":"user","content":prompt}],
-            temperature=0.2,
-            max_tokens=700
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception as e:
-        st.error(f"AI art analysis failed: {e}")
-        return "AI analysis unavailable."
-
-def ai_compare_artworks(meta_a: Dict, meta_b: Dict) -> str:
-    """AI: compare two artworks."""
-    prompt = f"""
-You are an art historian. Compare these two artworks. Provide:
-- Quick ID lines
-- Visual/compositional comparison
-- Differences in style, technique, and period
-- Differences in mythic narrative and representation
-- A 30-50 word curatorial pairing note
-
-Artwork A: {meta_a.get('title')} — {meta_a.get('artistDisplayName')} — {meta_a.get('objectDate')}
-URL: {meta_a.get('objectURL')}
-
-Artwork B: {meta_b.get('title')} — {meta_b.get('artistDisplayName')} — {meta_b.get('objectDate')}
-URL: {meta_b.get('objectURL')}
-"""
-    try:
-        resp = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role":"user","content":prompt}],
-            temperature=0.2,
-            max_tokens=800
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception as e:
-        st.error(f"AI comparison failed: {e}")
-        return "Comparison unavailable."
-
 def generate_aliases(name: str) -> List[str]:
-    """Return a list of synonyms / aliases for searching MET API for better recall."""
     aliases = [name]
-    low = name.lower()
-    # common variants
     if name == "Athena":
         aliases += ["Pallas Athena", "Minerva"]
     if name == "Zeus":
@@ -179,66 +77,117 @@ def generate_aliases(name: str) -> List[str]:
         aliases += ["Venus"]
     if name == "Hermes":
         aliases += ["Mercury"]
-    if name == "Perseus":
-        aliases += ["Perseus (hero)"]
     if name == "Medusa":
-        aliases += ["Gorgon", "Medousa"]
-    # add general fallback searches
+        aliases += ["Gorgon"]
     aliases += [f"{name} Greek", f"{name} myth"]
-    return list(dict.fromkeys(aliases))  # unique preserve order
+    return list(dict.fromkeys(aliases))
 
-# ---------- UI: Multi-tab layout (Q3: Multi-tab) ----------
-tabs = st.tabs(["Home", "Greek Deities", "Works & Analysis", "Compare", "Course Materials"])
+# ---------- OpenAI wrappers ----------
+def chat_completion(prompt: str, system: str = None, max_tokens: int = 600):
+    messages = []
+    if system:
+        messages.append({"role":"system","content":system})
+    messages.append({"role":"user","content":prompt})
+    try:
+        resp = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.2,
+            max_tokens=max_tokens
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        st.error(f"OpenAI request failed: {e}")
+        return "OpenAI error."
 
-# ---- HOME ----
+def expand_bio_with_ai(fixed_bio: str, name: str):
+    system = "You are an expert in Greek myth and museum interpretation. Expand concisely into three museum-friendly paragraphs."
+    prompt = f"""Expand this concise bio about "{name}" into a three-paragraph museum-friendly introduction including: who they are, key myths, common artistic depictions, and suggestions for exhibition context.\n\nBio:\n{fixed_bio}"""
+    return chat_completion(prompt, system=system, max_tokens=500)
+
+def ai_analyze_artwork(metadata: Dict):
+    title = metadata.get("title","Untitled")
+    artist = metadata.get("artistDisplayName","Unknown")
+    date = metadata.get("objectDate","?")
+    medium = metadata.get("medium","?")
+    url = metadata.get("objectURL","")
+    prompt = f"""You are a museum curator. Analyze the artwork:
+Title: {title}
+Artist: {artist}
+Date: {date}
+Medium: {medium}
+URL: {url}
+
+Provide labeled sections: Overview; Historical & Artistic Context; Iconography & Symbols; Mythological Reading; Exhibition Recommendation."""
+    return chat_completion(prompt, max_tokens=700)
+
+def ai_detail_symbolism(question: str, metadata: Dict):
+    prompt = f"""A visitor asked: "{question}" about this artwork. Metadata: Title: {metadata.get('title')}; Artist: {metadata.get('artistDisplayName')}; Date: {metadata.get('objectDate')}. Provide a short curator response explaining the visual detail's possible symbolic meanings, and note if the interpretation is speculative."""
+    return chat_completion(prompt, max_tokens=350)
+
+def ai_style_match_from_image(user_text: str, img_bytes_b64: str):
+    # We will use textual description + optional user sketch text to produce a style-match reply.
+    prompt = f"""Given this user text describing an uploaded image/sketch: "{user_text}". The app also has the uploaded image (base64 provided). Without seeing the image here, provide guidance on which period or style of ancient Greek art the sketch most resembles (e.g., Archaic black-figure vase painting, Classical marble sculpture, Hellenistic dynamic composition). Explain key visual clues to look for and give a probable classification and short suggestion for attribution practice."""
+    return chat_completion(prompt, max_tokens=500)
+
+def ai_myth_identifier(description: str):
+    prompt = f"""A user describes a scene in one sentence: "{description}". Identify which Greek deity/hero/creature is most likely referenced, explain why (visual cues or motifs), and suggest 2 related MET artworks to search for with short justification."""
+    return chat_completion(prompt, max_tokens=400)
+
+def ai_personality_quiz_responses(answers: Dict):
+    # build narrative
+    prompt = f"""Based on these short answers, determine which Greek god/hero the user most resembles. Answers: {answers}\nProvide: 1) a best-fit deity, 2) a short psychological explanation, 3) 3 recommended artworks (by theme) and why."""
+    return chat_completion(prompt, max_tokens=500)
+
+def generate_image_from_prompt(prompt_text: str, size: str = "1024x1024"):
+    try:
+        resp = openai.Image.create(
+            prompt=prompt_text,
+            n=1,
+            size=size
+        )
+        img_b64 = resp['data'][0]['b64_json']
+        img_bytes = base64.b64decode(img_b64)
+        return Image.open(BytesIO(img_bytes))
+    except Exception as e:
+        st.error(f"Image generation failed: {e}")
+        return None
+
+# ---------- Layout: tabs ----------
+tabs = st.tabs(["Home", "Greek Deities", "Works & Analysis", "Compare", "Interactive Art Zone", "Course Materials"])
+
+# HOME
 with tabs[0]:
-    st.header("Welcome — AI Museum Curator (Greek Myth Edition)")
+    st.header("Welcome")
     st.markdown("""
-This site lets you explore Greek gods, heroes, and mythic creatures through:
-- A short fixed introduction for each figure, **plus AI expansion** (museum-friendly).
-- Automatically retrieved artworks from the MET Museum.
-- Curator-level AI analyses for each artwork.
-
-**Quick start**
-1. Go to **Greek Deities** and pick a figure.  
-2. Read the fixed bio and click *Expand with AI* to get a full museum-style text.  
-3. Scroll to *Related Works* and pick an artwork to view detailed interpretation in **Works & Analysis**.
+Explore Greek gods, heroes, and mythic creatures via real museum artworks and AI-powered curatorial interpretation.
+**Interactive Art Zone** contains hands-on tools: detail analysis, style-matching (user uploads), myth ID, personality quiz, and image generation.
     """)
 
-# ---- GREEK DEITIES TAB ----
+# GREEK DEITIES
 with tabs[1]:
     st.header("Greek Deities / Heroes / Creatures")
-    st.caption("Select a figure to view a short fixed bio and request an AI expansion.")
-
     col1, col2 = st.columns([2,1])
     with col1:
         selected = st.selectbox("Choose a figure:", MYTH_LIST)
         fixed = FIXED_BIOS.get(selected, f"{selected} is a well-known figure in Greek mythology. Typical myths and artistic depictions vary.")
         st.subheader(f"Short description — {selected}")
         st.write(fixed)
-
         if st.button("Expand description with AI"):
-            with st.spinner("Expanding with AI..."):
-                expanded = ai_expand_bio(fixed, selected)
+            with st.spinner("Expanding..."):
+                expanded = expand_bio_with_ai(fixed, selected)
                 st.markdown("### AI Expanded Introduction")
                 st.write(expanded)
-                # Save to session so other tabs can use the expanded text
                 st.session_state["expanded_bio"] = expanded
+                st.session_state["last_bio_for"] = selected
         else:
-            # if previously expanded, show toggle
             if st.session_state.get("expanded_bio") and st.session_state.get("last_bio_for") == selected:
                 st.markdown("### AI Expanded Introduction (cached)")
                 st.write(st.session_state["expanded_bio"])
-
-        # store last selected
-        st.session_state["last_bio_for"] = selected
-
     with col2:
-        st.subheader("Related Searches")
-        st.write("Aliases used to search MET API for better recall:")
+        st.subheader("Related search aliases")
         st.write(generate_aliases(selected))
         if st.button("Fetch related works from MET"):
-            # search using aliases and combine results
             all_ids = []
             for alias in generate_aliases(selected):
                 ids = met_search_ids(alias, max_results=12)
@@ -246,40 +195,30 @@ with tabs[1]:
                     if i not in all_ids:
                         all_ids.append(i)
             if not all_ids:
-                st.info("No works found for this figure.")
+                st.info("No works found.")
             else:
-                st.success(f"Found {len(all_ids)} candidate works. Select one then go to 'Works & Analysis' tab.")
+                st.success(f"Found {len(all_ids)} candidate works.")
                 st.session_state["related_ids"] = all_ids
 
-    st.markdown("---")
-    st.write("Tip: after fetching related works, go to the 'Works & Analysis' tab to view and analyze.")
-
-# ---- WORKS & ANALYSIS TAB ----
+# WORKS & ANALYSIS
 with tabs[2]:
     st.header("Works & Analysis")
     if "related_ids" not in st.session_state:
-        st.info("No related works fetched yet. Go to 'Greek Deities', select a figure, and click 'Fetch related works from MET'.")
+        st.info("Fetch related works from the Greek Deities tab first.")
     else:
         ids = st.session_state["related_ids"]
-        # Show a gallery of thumbnails (first 12)
-        st.subheader("Related Artworks (click to select)")
+        st.subheader("Gallery (click to select)")
         cols = st.columns(4)
-        selected_id = None
-        for idx, object_id in enumerate(ids):
-            try:
-                meta = met_get_object(object_id)
-                img_url = meta.get("primaryImageSmall") or meta.get("primaryImage")
-                if img_url:
-                    img = fetch_image_from_url(img_url)
-                    if img:
-                        with cols[idx % 4]:
-                            st.image(img.resize((250,250)), use_column_width=False, caption=f"{meta.get('title')} ({object_id})")
-                            if st.button(f"Select {object_id}", key=f"sel_{object_id}"):
-                                st.session_state["selected_artwork"] = object_id
-            except Exception:
-                continue
-
-        # If an artwork is selected, show details and analysis
+        for idx, oid in enumerate(ids):
+            meta = met_get_object(oid)
+            img_url = meta.get("primaryImageSmall") or meta.get("primaryImage")
+            if img_url:
+                img = fetch_image_from_url(img_url)
+                if img:
+                    with cols[idx % 4]:
+                        st.image(img.resize((220,220)), caption=f"{meta.get('title')} ({oid})")
+                        if st.button(f"Select {oid}", key=f"sel_{oid}"):
+                            st.session_state["selected_artwork"] = oid
         if "selected_artwork" in st.session_state:
             art_id = st.session_state["selected_artwork"]
             meta = met_get_object(art_id)
@@ -288,73 +227,118 @@ with tabs[2]:
             st.write(f"**Artist:** {meta.get('artistDisplayName') or 'Unknown'}")
             st.write(f"**Date:** {meta.get('objectDate') or 'Unknown'}")
             st.write(f"**Medium:** {meta.get('medium') or 'Unknown'}")
-            st.write(f"**Department:** {meta.get('department') or 'Unknown'}")
             if meta.get("primaryImage"):
                 image = fetch_image_from_url(meta.get("primaryImage"))
                 if image:
                     st.image(image, use_column_width=True)
-
-            # Fixed bio context (if present)
-            last_bio_for = st.session_state.get("last_bio_for")
-            if last_bio_for:
-                st.write(f"Context: selected figure — **{last_bio_for}**")
-                fixed = FIXED_BIOS.get(last_bio_for, "")
-                if fixed:
-                    st.write("Short bio (fixed):")
-                    st.write(fixed)
-                if st.session_state.get("expanded_bio") and st.session_state.get("last_bio_for") == last_bio_for:
-                    st.write("AI Expanded Introduction:")
-                    st.write(st.session_state["expanded_bio"])
-
-            # Generate analysis
             if st.button("Generate AI Curatorial Analysis"):
                 with st.spinner("Generating analysis..."):
-                    analysis = ai_generate_art_analysis(meta)
+                    analysis = ai_analyze_artwork(meta)
                     st.markdown("### AI Curatorial Analysis")
                     st.write(analysis)
 
-# ---- COMPARE TAB ----
+# COMPARE
 with tabs[3]:
     st.header("Compare Two Artworks")
-    st.write("Enter two MET Object IDs (or use previously selected artwork).")
     id_a = st.text_input("Artwork A Object ID", value=st.session_state.get("selected_artwork",""))
     id_b = st.text_input("Artwork B Object ID", value="")
-    if st.button("Compare artworks"):
+    if st.button("Compare"):
         if not id_a or not id_b:
-            st.error("Please provide both object IDs.")
+            st.error("Provide both IDs.")
         else:
             meta_a = met_get_object(id_a)
             meta_b = met_get_object(id_b)
             if meta_a and meta_b:
-                with st.spinner("Generating comparison..."):
+                with st.spinner("Comparing..."):
                     comp = ai_compare_artworks(meta_a, meta_b)
-                    st.markdown("### Comparative Analysis (AI-generated)")
+                    st.markdown("### Comparative Analysis")
                     st.write(comp)
 
-# ---- COURSE MATERIALS TAB ----
+# INTERACTIVE ART ZONE (C: two categories: Art-based / Myth-based)
 with tabs[4]:
-    st.header("Course Materials & Background")
+    st.header("Interactive Art Zone")
+    st.markdown("Two sections: **Art-based Interactions** and **Myth-based Interactions**")
+    sub = st.radio("Choose interaction category:", ["Art-based", "Myth-based"])
+
+    if sub == "Art-based":
+        st.subheader("Art-based Interactions")
+        # ④ Detail Symbolism
+        st.markdown("#### Detail & Symbolism (Ask about a visual detail)")
+        if "selected_artwork" not in st.session_state:
+            st.info("Select an artwork in Works & Analysis first to ask about its details.")
+        else:
+            meta = met_get_object(st.session_state["selected_artwork"])
+            question = st.text_input("Type a question about a detail in this artwork (e.g., 'What does the owl mean?'):")
+            if st.button("Ask about detail"):
+                with st.spinner("Analyzing detail..."):
+                    answer = ai_detail_symbolism(question, meta)
+                    st.write(answer)
+
+        st.markdown("---")
+        # ⑤ Style Analyzer (upload sketch)
+        st.markdown("#### Style Analyzer — Upload a sketch/photo")
+        st.write("Upload a simple sketch or photo. The AI will suggest which Greek art style/period it resembles and explain visual clues.")
+        uploaded = st.file_uploader("Upload an image (jpg/png)", type=["png","jpg","jpeg"])
+        user_sketch_note = st.text_input("Optional: Describe your sketch in a few words")
+        if uploaded and st.button("Analyze uploaded sketch"):
+            img = Image.open(uploaded).convert("RGB")
+            st.image(img, caption="Uploaded sketch", use_column_width=False)
+            # convert to base64 to provide context to prompt (not sending binary to model)
+            buffered = BytesIO()
+            img.save(buffered, format="JPEG")
+            b64 = base64.b64encode(buffered.getvalue()).decode()
+            with st.spinner("Analyzing style..."):
+                style_resp = ai_style_match_from_image(user_sketch_note or "User sketch", b64)
+                st.write(style_resp)
+
+    else:
+        st.subheader("Myth-based Interactions")
+        # ⑨ Myth Identifier
+        st.markdown("#### Myth Identifier — Describe a scene in one sentence")
+        desc = st.text_input("Describe a scene or motif (e.g., 'A winged man holding a head and a shield that reflects faces')")
+        if st.button("Identify myth"):
+            with st.spinner("Identifying..."):
+                res = ai_myth_identifier(desc)
+                st.write(res)
+
+        st.markdown("---")
+        # ⑩ Which God Are You? quiz
+        st.markdown("#### Which Greek Deity Are You? — Short quiz")
+        q1 = st.selectbox("In a group project you are:", ["Leader", "Supporter", "Analyst", "Visionary"])
+        q2 = st.selectbox("You value most:", ["Wisdom", "Glory", "Pleasure", "Order"])
+        q3 = st.selectbox("In conflict you tend to:", ["Strategize", "Confront", "Avoid", "Negotiate"])
+        if st.button("Find my deity"):
+            answers = {"q1": q1, "q2": q2, "q3": q3}
+            with st.spinner("Determining..."):
+                profile = ai_personality_quiz_responses(answers)
+                st.write(profile)
+
+        st.markdown("---")
+        # ⑪ Myth Image Generator (DALL·E)
+        st.markdown("#### Myth Image Generator — Describe a scene for AI to illustrate")
+        scene = st.text_area("Describe the mythological scene (style, mood, color, e.g., 'Perseus beheading Medusa, dramatic chiaroscuro, Baroque style')", height=120)
+        size = st.selectbox("Image size", ["512x512","1024x1024"])
+        if st.button("Generate image"):
+            if not scene:
+                st.error("Please describe a scene.")
+            else:
+                with st.spinner("Generating image (this may take a while)..."):
+                    img = generate_image_from_prompt(scene, size=size)
+                    if img:
+                        st.image(img, caption="AI-generated myth scene", use_column_width=True)
+                        # optionally provide download
+                        buf = BytesIO()
+                        img.save(buf, format="PNG")
+                        st.download_button("Download image", data=buf.getvalue(), file_name="myth_scene.png", mime="image/png")
+
+# COURSE MATERIALS
+with tabs[5]:
+    st.header("Course Materials & Slides")
+    st.markdown("Course slides (uploaded):")
+    # Use developer-provided local path; deployment will handle static serving or you can add pdf to repo.
+    st.markdown("[Download / View slides](/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf)")
     st.markdown("""
-This project is inspired by the course *Arts & Advanced Big Data*.  
-Below are summarized sections from the course that frame this project.
-    """)
-    st.markdown("**Course slide PDF (uploaded):**")
-    # Developer instruction: include the uploaded file path as the URL
-    st.markdown(f"[Download / View slides](/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf)")
-
-    st.markdown("---")
-    st.subheader("AI Museum Curator — Goal & Workflow")
-    st.write("""
-- Goal: Build a web application that fetches real artwork data from a museum API and uses an AI model to act as an art curator.
-- Workflow: MET API → Curator Prompt → Streamlit Display → User browsing & interpretation.
-    """)
-
-    st.subheader("Other project directions (summaries)")
-    st.markdown("""
-**Generative AI for Art Creation** — Create image/music/text with generative models; curate into a portfolio.  
-**Multimodal Prompting** — Combine image + text input for analysis and code generation.  
-**Art Data Visualization** — Gather datasets, clean with pandas, visualize with Plotly.  
-**Creative Coding: Generative Poster 2.0** — Use Python + AI design suggestions to create poster series.
-    """)
-
-    st.caption("End of course materials.")
+**Notes**
+- The app integrates MET Museum API, OpenAI for text generation and DALL·E for image generation.
+- Be mindful of token usage when generating many AI responses.
+""")
