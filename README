@@ -1,58 +1,48 @@
 # 🏛️ AI Museum Curator — Greek Mythology Edition
 
-Interactive Streamlit app that combines the MET Museum Open API with OpenAI to provide curator-style interpretations of artworks and a hands-on interactive zone for users.
+Interactive Streamlit web app that connects MET Museum data with OpenAI to generate curator-level artwork analyses and provide a hands-on interactive experience.
 
 ---
 
-## ✅ Key features
+## 🔎 Key Capabilities (what you get)
 
-- Select a Greek god/hero/creature and read a short fixed bio (optionally expand via AI).  
-- Fetch related artworks from the MET Museum and browse thumbnails.  
-- View high-resolution images and AI-generated curator analyses.  
-- Interactive Art Zone:
-  - Detail & Symbolism (ask about visual details)
-  - Style Analyzer (upload a sketch/photo and get style hints)
-  - Myth Identifier (one-sentence description → AI identifies likely deity and fetches artworks)
-  - Which Greek Deity Are You? (short personality quiz → AI maps to a deity and suggests artworks)
+- Browse **comprehensive list** of Greek gods, heroes, and creatures.  
+- Read short **human-written bios** and expand them with AI into museum-style introductions.  
+- Fetch **related artworks** from the MET (all object types: sculptures, vases, coins, prints, textiles, painting).  
+- View each object's full metadata and image(s).  
+- Generate structured **AI curator analyses** (Overview; Context; Iconography; Myth reading; Exhibition recommendation).  
+- Interactive Art Zone: ask about image details, upload sketches for style analysis, identify myth from a sentence, take a short "Which Deity Are You?" quiz, and generate AI images of scenes.
 
 ---
 
-## 🔒 OpenAI API Key
+## 🎮 How to Use (step-by-step)
 
-To enable AI features, provide an OpenAI API key either as an environment variable `OPENAI_API_KEY` or by entering your key in the Home page input box (stored only in your session). The app will not save your key on a server.
-
----
-
-## 🧭 How to Use (Step-by-step)
-
-1. Run the app (local) or open the deployed URL.  
-2. On **Home**, enter your OpenAI API key to enable AI functions.  
-3. Go to **Greek Deities**: pick a figure → click **Expand description with AI** (optional) → click **Fetch related works**.  
-4. Go to **Works & Analysis**: browse thumbnails → select an artwork → click **Generate AI Curatorial Analysis**.  
-5. Visit **Interactive Art Zone** for deeper interactions:
-   - Describe a scene → AI will identify the most likely deity and fetch related works.  
-   - Take the personality quiz to discover your mythic match and see recommended works.  
-   - Upload sketches to get style-matching feedback.  
-   - Ask about a visual detail to get curator-style explanation.
+1. Open **Greek Deities** tab → choose a figure.  
+2. Click **Expand description with AI** for a museum-style intro.  
+3. Click **Fetch related works from MET** to build a candidate list.  
+4. Go to **Works & Analysis** and click a thumbnail to select an object.  
+5. Click **Generate AI Curatorial Analysis** to receive a structured interpretation.  
+6. Go to **Interactive Art Zone** for:
+   - Detail & Symbolism (ask about a motif)  
+   - Style Analyzer (upload a sketch/photo)  
+   - Myth Identifier (describe a scene)  
+   - Which Deity Are You? (quiz)  
+   - Myth Image Generator (AI-generated art)
 
 ---
 
-## Sources & Acknowledgments
-
-- Metropolitan Museum of Art — Open Access API (collectionapi.metmuseum.org)  
-- OpenAI (GPT models) for text generation  
-- This project synthesizes museum practice, art history, and generative AI for educational purposes.
-
-Course slides (provided): `/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf`
+## 🔐 OpenAI API Key (session)
+- Enter your OpenAI API Key on the **Home** page (session-only) to enable AI features.  
+- You may also set `OPENAI_API_KEY` in environment variables or Streamlit Secrets for persistent deployment.
 
 ---
 
-## Setup & Run locally
+## 🧰 Installation (local)
 
-1. Create virtual environment and install:
 ```bash
+git clone https://github.com/your-username/ai-museum-curator-greek-myth
+cd ai-museum-curator-greek-myth
 python -m venv venv
-source venv/bin/activate    # mac / linux
-# venv\Scripts\activate     # windows
+source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
+streamlit run app.py
