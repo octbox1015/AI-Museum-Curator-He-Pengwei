@@ -35,22 +35,25 @@ FIXED_BIOS = {
 MET_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search"
 MET_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects/{}"
 
+# Developer-provided local PDF path (will be turned into a URL by deployment)
+COURSE_PDF_PATH = "/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf"
+
 # ----------------- MET helpers -----------------
 @st.cache_data(show_spinner=False)
 def met_search_ids(query: str, max_results: int = 60) -> List[int]:
+    """Search MET and return objectIDs (cached)."""
     try:
         params = {"q": query, "hasImages": True}
         r = requests.get(MET_SEARCH, params=params, timeout=12)
         r.raise_for_status()
         ids = r.json().get("objectIDs") or []
         return ids[:max_results]
-    except Exception as e:
-        # don't call st.error in cache function (side effects); return empty
+    except Exception:
         return []
 
 @st.cache_data(show_spinner=False)
 def met_get_object_cached(object_id: int) -> Dict:
-    """Cached wrapper for fetching MET object metadata."""
+    """Fetch MET object metadata (cached)."""
     try:
         r = requests.get(MET_OBJECT.format(object_id), timeout=12)
         r.raise_for_status()
@@ -59,33 +62,30 @@ def met_get_object_cached(object_id: int) -> Dict:
         return {}
 
 def met_get_object(object_id: int) -> Dict:
-    """Non-cached alias (wraps cached function)."""
     return met_get_object_cached(object_id)
 
 def fetch_image_from_metadata(meta: Dict):
-    """Robust image loader: try primaryImageSmall, primaryImage, additionalImages."""
-    candidates = []
+    """Try multiple image fields and return a PIL Image or None."""
     if not meta:
         return None
+    candidates = []
+    # order of preference
     if meta.get("primaryImageSmall"):
         candidates.append(meta["primaryImageSmall"])
     if meta.get("primaryImage"):
         candidates.append(meta["primaryImage"])
+    # additionalImages is often a list
     if meta.get("additionalImages"):
-        # sometimes additionalImages is a list of URLs
         try:
             candidates.extend(meta.get("additionalImages"))
         except Exception:
             pass
-    # filter unique and non-empty
+    # unique and valid
     seen = set()
-    filtered = []
-    for u in candidates:
-        if u and u not in seen:
-            seen.add(u)
-            filtered.append(u)
-
-    for url in filtered:
+    for url in candidates:
+        if not url or url in seen:
+            continue
+        seen.add(url)
         try:
             r = requests.get(url, timeout=12)
             r.raise_for_status()
@@ -110,8 +110,9 @@ def generate_aliases(name: str) -> List[str]:
     aliases += [f"{name} Greek", f"{name} myth", f"{name} deity"]
     return list(dict.fromkeys(aliases))
 
-# ----------------- OpenAI client & wrappers (new SDK) -----------------
+# ----------------- OpenAI client helpers -----------------
 def get_openai_client():
+    """Return an OpenAI client using session key or env var; or None if missing."""
     key = st.session_state.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not key:
         return None
@@ -149,7 +150,7 @@ def image_generate(client, prompt_text, size: str = "1024x1024"):
     except Exception as e:
         return None, str(e)
 
-# Prompt wrappers (unchanged)
+# ----------------- Prompt wrappers -----------------
 def expand_bio_ai(client, name: str, base_bio: str):
     system = "You are an expert in Greek mythology and museum interpretation. Produce a concise, museum-friendly 3-paragraph introduction."
     user = f"Expand the short bio about {name} into three paragraphs: who they are; key myths; common artistic depictions and exhibition notes.\n\nShort bio:\n{base_bio}"
@@ -192,7 +193,7 @@ def ai_personality_archetype(client, answers: Dict):
     user = f"Map these answers to a best-fit Greek myth archetype and explain: {answers}. Provide: 1) archetype & deity; 2) short psych explanation; 3) 3 recommended artwork themes."
     return chat_complete(client, [{"role":"system","content":system},{"role":"user","content":user}], max_tokens=500)
 
-# ----------------- Layout (tabs) -----------------
+# ----------------- UI: Tabs -----------------
 tabs = st.tabs(["Home","Greek Deities","Works & Analysis","Interactive Art Zone"])
 
 # ---- HOME ----
@@ -201,15 +202,14 @@ with tabs[0]:
     st.markdown("""
 **What this app does:**  
 Explore Greek gods, heroes, and mythic creatures via MET collections, and receive curator-level AI interpretations.
+
+**Quick steps**
+1. Go to **Greek Deities**, pick a figure and (optionally) expand the short bio with AI.
+2. Click **Fetch related works** — thumbnails will appear if images are accessible.
+3. Click a thumbnail to select a work; the **Works & Analysis** tab will show the selected object's full page.
+4. Use **Interactive Art Zone** for close-looking, sketch-based style hints, myth ID, archetype quiz, or image generation.
     """)
-    st.subheader("Quick guide (short & clear)")
-    st.markdown("""
-1. Open **Greek Deities** and choose a figure.  
-2. Expand the short bio with AI (optional).  
-3. Fetch related works from MET.  
-4. Go to **Works & Analysis**, select an object, then generate curator analysis.  
-5. Use **Interactive Art Zone** for close-looking, sketch-style analysis, myth ID, archetype quiz, or image generation.
-    """)
+    st.markdown("---")
     st.subheader("OpenAI API Key (session only)")
     key = st.text_input("Paste your OpenAI API Key (sk-...):", type="password")
     if st.button("Save API Key"):
@@ -219,7 +219,11 @@ Explore Greek gods, heroes, and mythic creatures via MET collections, and receiv
             st.session_state["OPENAI_API_KEY"] = key
             st.success("API Key saved to session. AI features enabled.")
     if OpenAI is None:
-        st.warning("OpenAI SDK not installed correctly. Make sure package 'openai' in requirements is available.")
+        st.warning("OpenAI SDK not installed correctly. Make sure 'openai' package is available.")
+
+    st.markdown("---")
+    st.markdown("Course slides (reference):")
+    st.markdown(f"[Download / View slides]({COURSE_PDF_PATH})")
 
 # ---- GREEK DEITIES ----
 with tabs[1]:
@@ -248,11 +252,11 @@ with tabs[1]:
     st.markdown("#### Related search aliases")
     st.write(generate_aliases(selected))
 
-    # NEW: Fetch and DISPLAY thumbnails immediately on this tab
+    # Fetch & display thumbnails in this tab (if available)
     if st.button("Fetch related works from MET"):
         all_ids = []
         for alias in generate_aliases(selected):
-            ids = met_search_ids(alias, max_results=60)
+            ids = met_search_ids(alias, max_results=80)
             for i in ids:
                 if i not in all_ids:
                     all_ids.append(i)
@@ -260,11 +264,10 @@ with tabs[1]:
         if not all_ids:
             st.info("No works found for this figure.")
             st.session_state.pop("related_ids", None)
+            st.session_state.pop("thumbs", None)
         else:
             st.success(f"Found {len(all_ids)} candidate works (may include different object types).")
-            # try to fetch thumbnails for the first N objects that have images
             thumbs = []
-            thumb_metas = []
             for oid in all_ids:
                 meta = met_get_object(oid)
                 if not meta:
@@ -272,7 +275,6 @@ with tabs[1]:
                 img = fetch_image_from_metadata(meta)
                 if img:
                     thumbs.append((oid, meta, img))
-                    thumb_metas.append(meta)
                 if len(thumbs) >= 12:
                     break
             if not thumbs:
@@ -280,7 +282,6 @@ with tabs[1]:
                 st.session_state["related_ids"] = all_ids
                 st.session_state.pop("thumbs", None)
             else:
-                # store related IDs and thumbnails metadata in session state
                 st.session_state["related_ids"] = all_ids
                 st.session_state["thumbs"] = [(oid, meta.get("title") or meta.get("objectName") or f"Object {oid}") for oid, meta, _ in thumbs]
 
@@ -291,104 +292,111 @@ with tabs[1]:
                         st.image(img.resize((220,220)), caption=f"{meta.get('title') or meta.get('objectName')} ({oid})")
                         if st.button(f"Select {oid}", key=f"thumb_select_{oid}"):
                             st.session_state["selected_artwork"] = oid
-                            st.success(f"Selected {oid}. Go to 'Works & Analysis' tab to view details and analysis.")
+                            st.success(f"Selected {oid}. Switch to 'Works & Analysis' tab to view details.")
 
 # ---- WORKS & ANALYSIS ----
 with tabs[2]:
-    st.header("Works & Analysis — Structured View")
-    if "related_ids" not in st.session_state:
-        st.info("No related works yet. Go to 'Greek Deities' and fetch related works.")
+    st.header("Works & Analysis — Selected Artwork View (Gallery hidden when an artwork is selected)")
+    # If an artwork is selected, show its full page (Gallery hidden)
+    if "selected_artwork" in st.session_state:
+        art_id = st.session_state["selected_artwork"]
+        meta = met_get_object(art_id)
+        st.markdown("---")
+        # Show medium-large image (approx 600px width)
+        img = fetch_image_from_metadata(meta)
+        if img:
+            # resize while keeping aspect ratio to have width ~600px
+            max_width = 600
+            w, h = img.size
+            if w > max_width:
+                new_h = int(h * (max_width / w))
+                img = img.resize((max_width, new_h))
+            st.image(img, use_column_width=False)
+
+        st.subheader(f"{meta.get('title') or meta.get('objectName')}  —  Object ID {art_id}")
+        # Identification block
+        st.markdown("#### Identification")
+        st.write(f"**Object Name:** {meta.get('objectName')}")
+        st.write(f"**Title:** {meta.get('title')}")
+        st.write(f"**Artist:** {meta.get('artistDisplayName') or 'Unknown'}")
+        st.write(f"**Date:** {meta.get('objectDate')}")
+        st.write(f"**Medium:** {meta.get('medium')}")
+        st.write(f"**Classification:** {meta.get('classification')}")
+        st.write(f"**Culture:** {meta.get('culture')}")
+        st.write(f"**Department:** {meta.get('department')}")
+        st.write(f"**Accession Number:** {meta.get('accessionNumber')}")
+        st.markdown(f"[View on MET]({meta.get('objectURL')})")
+
+        # AI-assisted sections (Overview / Context / Iconography / Exhibition Notes)
+        client = get_openai_client()
+        st.markdown("#### Overview")
+        if client:
+            with st.spinner("Generating overview..."):
+                msg = [{"role":"system","content":"You are a museum curator."},
+                       {"role":"user","content":f"Write a 3-sentence public-facing overview for the artwork titled '{meta.get('title')}'. Use metadata to ground it."}]
+                overview = chat_complete(client, msg, max_tokens=200)
+                st.write(overview)
+        else:
+            st.write("Overview: (enable OpenAI API key on Home page)")
+
+        st.markdown("#### Historical & Artistic Context")
+        if client:
+            with st.spinner("Generating context..."):
+                msg = [{"role":"system","content":"You are an art historian."},
+                       {"role":"user","content":f"Using metadata: {meta}. Provide 4-6 sentences about the artwork's historical and artistic context."}]
+                ctx = chat_complete(client, msg, max_tokens=400)
+                st.write(ctx)
+        else:
+            st.write("Context: (enable OpenAI API key)")
+
+        st.markdown("#### Artistic Features")
+        st.write("Material, technique, composition, and notable stylistic features (auto-generated with AI when enabled).")
+
+        st.markdown("#### Iconography & Myth Interpretation")
+        if client:
+            with st.spinner("Analyzing iconography..."):
+                msg = [{"role":"system","content":"You are an iconography specialist."},
+                       {"role":"user","content":f"Analyze the iconography for metadata: {meta}. What mythic elements or symbols are present and what might they mean?"}]
+                ico = chat_complete(client, msg, max_tokens=400)
+                st.write(ico)
+        else:
+            st.write("Iconography: (enable OpenAI API key)")
+
+        st.markdown("#### Exhibition Notes")
+        st.write("Suggested placement and related objects (AI will generate when API enabled).")
     else:
-        ids = st.session_state["related_ids"]
-        st.subheader("Gallery — click to select an object")
-        cols = st.columns(4)
-        shown_any = False
-        for idx, oid in enumerate(ids):
-            meta = met_get_object(oid)
-            title = meta.get("title") or meta.get("objectName") or f"Object {oid}"
-            img = fetch_image_from_metadata(meta)
-            if img:
-                shown_any = True
-                with cols[idx % 4]:
-                    st.image(img.resize((220,220)), caption=f"{title} ({oid})")
-                    if st.button(f"Select {oid}", key=f"sel_{oid}"):
-                        st.session_state["selected_artwork"] = oid
-        if not shown_any:
-            st.info("None of the fetched works have accessible images; try fetching again or selecting another figure.")
+        # No artwork selected — show gallery
+        if "related_ids" not in st.session_state:
+            st.info("No related works yet. Go to 'Greek Deities' and fetch related works.")
+        else:
+            st.subheader("Gallery — click a thumbnail to select an object")
+            ids = st.session_state["related_ids"]
+            cols = st.columns(4)
+            shown_any = False
+            for idx, oid in enumerate(ids):
+                meta = met_get_object(oid)
+                title = meta.get("title") or meta.get("objectName") or f"Object {oid}"
+                img = fetch_image_from_metadata(meta)
+                if img:
+                    shown_any = True
+                    with cols[idx % 4]:
+                        st.image(img.resize((220,220)), caption=f"{title} ({oid})")
+                        if st.button(f"Select {oid}", key=f"sel_{oid}"):
+                            st.session_state["selected_artwork"] = oid
+            if not shown_any:
+                st.info("None of the fetched works have accessible images; try fetching again or select another figure.")
 
-        if "selected_artwork" in st.session_state:
-            art_id = st.session_state["selected_artwork"]
-            meta = met_get_object(art_id)
-            st.markdown("---")
-            # Structured museum-like wall text (auto-expanded)
-            st.subheader(f"{meta.get('title') or meta.get('objectName')}  —  Object ID {art_id}")
-
-            # Identification
-            st.markdown("#### Identification")
-            st.write(f"**Object Name:** {meta.get('objectName')}")
-            st.write(f"**Title:** {meta.get('title')}")
-            st.write(f"**Artist:** {meta.get('artistDisplayName') or 'Unknown'}")
-            st.write(f"**Date:** {meta.get('objectDate')}")
-            st.write(f"**Medium:** {meta.get('medium')}")
-            st.write(f"**Classification:** {meta.get('classification')}")
-            st.write(f"**Culture:** {meta.get('culture')}")
-            st.write(f"**Department:** {meta.get('department')}")
-            st.write(f"**Accession Number:** {meta.get('accessionNumber')}")
-            st.markdown(f"[View on MET]({meta.get('objectURL')})")
-
-            # Overview (auto expanded)
-            st.markdown("#### Overview")
-            overview_client = get_openai_client()
-            if overview_client:
-                with st.spinner("Generating museum-style overview..."):
-                    msg = [{"role":"system","content":"You are a museum curator."},
-                           {"role":"user","content":f"Write a 3-sentence public-facing overview for the artwork titled '{meta.get('title')}'. Use metadata to ground it."}]
-                    overview = chat_complete(overview_client, msg, max_tokens=200)
-                    st.write(overview)
-            else:
-                st.write("Overview: (enable OpenAI API key to auto-generate)")
-
-            # Historical & Artistic Context (auto expanded)
-            st.markdown("#### Historical & Artistic Context")
-            if overview_client:
-                with st.spinner("Generating context..."):
-                    msg = [{"role":"system","content":"You are an art historian."},
-                           {"role":"user","content":f"Using metadata: {meta}. Provide 4-6 sentences about the artwork's historical and artistic context."}]
-                    ctx = chat_complete(overview_client, msg, max_tokens=400)
-                    st.write(ctx)
-            else:
-                st.write("Context: (enable OpenAI API key)")
-
-            # Artistic Features
-            st.markdown("#### Artistic Features")
-            st.write("Material, technique, composition, and notable stylistic features will be described here when AI is enabled.")
-
-            # Iconography & Myth Interpretation
-            st.markdown("#### Iconography & Myth Interpretation")
-            if overview_client:
-                with st.spinner("Analyzing iconography..."):
-                    msg = [{"role":"system","content":"You are an iconography specialist."},
-                           {"role":"user","content":f"Analyze the iconography for metadata: {meta}. What mythic elements or symbols are present and what might they mean?"}]
-                    ico = chat_complete(overview_client, msg, max_tokens=400)
-                    st.write(ico)
-            else:
-                st.write("Iconography: (enable OpenAI API key)")
-
-            # Exhibition Notes
-            st.markdown("#### Exhibition Notes")
-            st.write("Suggested placement, wall text length, and related objects (AI will generate when API enabled).")
-
-# ---- INTERACTIVE ART ZONE (Art-based / Myth-based) ----
+# ---- INTERACTIVE ART ZONE ----
 with tabs[3]:
     st.header("Interactive Art Zone")
-    choice = st.radio("Category:", ["Art-based", "Myth-based"])
+    category = st.radio("Category:", ["Art-based", "Myth-based"])
 
     client = get_openai_client()
 
-    if choice == "Art-based":
+    if category == "Art-based":
         st.subheader("Detail & Symbolism — Ask about a visual detail")
         if "selected_artwork" not in st.session_state:
-            st.info("Select an artwork first in Works & Analysis.")
+            st.info("Select an artwork in Works & Analysis first.")
         else:
             meta = met_get_object(st.session_state["selected_artwork"])
             q = st.text_input("Ask about a visual detail (e.g., 'What does the owl mean?'):")
