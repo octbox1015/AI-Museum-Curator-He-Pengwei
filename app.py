@@ -35,43 +35,59 @@ FIXED_BIOS = {
 MET_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search"
 MET_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects/{}"
 
-# Path to course PDF (developer-provided). Kept here as link in UI.
-COURSE_PDF_PATH = "/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf"
-
 # ----------------- MET helpers -----------------
+@st.cache_data(show_spinner=False)
 def met_search_ids(query: str, max_results: int = 60) -> List[int]:
     try:
         params = {"q": query, "hasImages": True}
-        r = requests.get(MET_SEARCH, params=params, timeout=10)
+        r = requests.get(MET_SEARCH, params=params, timeout=12)
         r.raise_for_status()
         ids = r.json().get("objectIDs") or []
         return ids[:max_results]
     except Exception as e:
-        st.error(f"MET search error: {e}")
+        # don't call st.error in cache function (side effects); return empty
         return []
 
-def met_get_object(object_id: int) -> Dict:
+@st.cache_data(show_spinner=False)
+def met_get_object_cached(object_id: int) -> Dict:
+    """Cached wrapper for fetching MET object metadata."""
     try:
-        r = requests.get(MET_OBJECT.format(object_id), timeout=10)
+        r = requests.get(MET_OBJECT.format(object_id), timeout=12)
         r.raise_for_status()
         return r.json()
-    except Exception as e:
-        st.error(f"Failed to fetch MET object {object_id}: {e}")
+    except Exception:
         return {}
+
+def met_get_object(object_id: int) -> Dict:
+    """Non-cached alias (wraps cached function)."""
+    return met_get_object_cached(object_id)
 
 def fetch_image_from_metadata(meta: Dict):
     """Robust image loader: try primaryImageSmall, primaryImage, additionalImages."""
     candidates = []
+    if not meta:
+        return None
     if meta.get("primaryImageSmall"):
         candidates.append(meta["primaryImageSmall"])
     if meta.get("primaryImage"):
         candidates.append(meta["primaryImage"])
     if meta.get("additionalImages"):
-        candidates.extend(meta["additionalImages"])
-    # try each URL
-    for url in candidates:
+        # sometimes additionalImages is a list of URLs
         try:
-            r = requests.get(url, timeout=10)
+            candidates.extend(meta.get("additionalImages"))
+        except Exception:
+            pass
+    # filter unique and non-empty
+    seen = set()
+    filtered = []
+    for u in candidates:
+        if u and u not in seen:
+            seen.add(u)
+            filtered.append(u)
+
+    for url in filtered:
+        try:
+            r = requests.get(url, timeout=12)
             r.raise_for_status()
             return Image.open(BytesIO(r.content)).convert("RGB")
         except Exception:
@@ -118,11 +134,10 @@ def chat_complete(client, messages: List[Dict], model: str = "gpt-4o-mini", max_
     except Exception as e:
         return f"OpenAI error: {e}"
 
-def image_generate(client, prompt_text: str, size: str = "1024x1024"):
+def image_generate(client, prompt_text, size: str = "1024x1024"):
     if client is None:
         return None, "OpenAI client not configured."
     try:
-        # try images.generate, fallback to images.create
         try:
             resp = client.images.generate(prompt=prompt_text, size=size, n=1)
             b64 = resp.data[0].b64_json
@@ -134,7 +149,7 @@ def image_generate(client, prompt_text: str, size: str = "1024x1024"):
     except Exception as e:
         return None, str(e)
 
-# Prompt wrappers
+# Prompt wrappers (unchanged)
 def expand_bio_ai(client, name: str, base_bio: str):
     system = "You are an expert in Greek mythology and museum interpretation. Produce a concise, museum-friendly 3-paragraph introduction."
     user = f"Expand the short bio about {name} into three paragraphs: who they are; key myths; common artistic depictions and exhibition notes.\n\nShort bio:\n{base_bio}"
@@ -232,18 +247,51 @@ with tabs[1]:
 
     st.markdown("#### Related search aliases")
     st.write(generate_aliases(selected))
+
+    # NEW: Fetch and DISPLAY thumbnails immediately on this tab
     if st.button("Fetch related works from MET"):
         all_ids = []
         for alias in generate_aliases(selected):
-            ids = met_search_ids(alias, max_results=40)
+            ids = met_search_ids(alias, max_results=60)
             for i in ids:
                 if i not in all_ids:
                     all_ids.append(i)
+
         if not all_ids:
-            st.info("No works found.")
+            st.info("No works found for this figure.")
+            st.session_state.pop("related_ids", None)
         else:
             st.success(f"Found {len(all_ids)} candidate works (may include different object types).")
-            st.session_state["related_ids"] = all_ids
+            # try to fetch thumbnails for the first N objects that have images
+            thumbs = []
+            thumb_metas = []
+            for oid in all_ids:
+                meta = met_get_object(oid)
+                if not meta:
+                    continue
+                img = fetch_image_from_metadata(meta)
+                if img:
+                    thumbs.append((oid, meta, img))
+                    thumb_metas.append(meta)
+                if len(thumbs) >= 12:
+                    break
+            if not thumbs:
+                st.info("Found works but none have accessible images. Try a different alias or check network access.")
+                st.session_state["related_ids"] = all_ids
+                st.session_state.pop("thumbs", None)
+            else:
+                # store related IDs and thumbnails metadata in session state
+                st.session_state["related_ids"] = all_ids
+                st.session_state["thumbs"] = [(oid, meta.get("title") or meta.get("objectName") or f"Object {oid}") for oid, meta, _ in thumbs]
+
+                st.markdown("### Thumbnails (click to select)")
+                cols = st.columns(4)
+                for idx, (oid, meta, img) in enumerate(thumbs):
+                    with cols[idx % 4]:
+                        st.image(img.resize((220,220)), caption=f"{meta.get('title') or meta.get('objectName')} ({oid})")
+                        if st.button(f"Select {oid}", key=f"thumb_select_{oid}"):
+                            st.session_state["selected_artwork"] = oid
+                            st.success(f"Selected {oid}. Go to 'Works & Analysis' tab to view details and analysis.")
 
 # ---- WORKS & ANALYSIS ----
 with tabs[2]:
@@ -254,15 +302,19 @@ with tabs[2]:
         ids = st.session_state["related_ids"]
         st.subheader("Gallery — click to select an object")
         cols = st.columns(4)
+        shown_any = False
         for idx, oid in enumerate(ids):
             meta = met_get_object(oid)
             title = meta.get("title") or meta.get("objectName") or f"Object {oid}"
             img = fetch_image_from_metadata(meta)
             if img:
+                shown_any = True
                 with cols[idx % 4]:
                     st.image(img.resize((220,220)), caption=f"{title} ({oid})")
                     if st.button(f"Select {oid}", key=f"sel_{oid}"):
                         st.session_state["selected_artwork"] = oid
+        if not shown_any:
+            st.info("None of the fetched works have accessible images; try fetching again or selecting another figure.")
 
         if "selected_artwork" in st.session_state:
             art_id = st.session_state["selected_artwork"]
@@ -289,7 +341,6 @@ with tabs[2]:
             overview_client = get_openai_client()
             if overview_client:
                 with st.spinner("Generating museum-style overview..."):
-                    # a short overview prompt
                     msg = [{"role":"system","content":"You are a museum curator."},
                            {"role":"user","content":f"Write a 3-sentence public-facing overview for the artwork titled '{meta.get('title')}'. Use metadata to ground it."}]
                     overview = chat_complete(overview_client, msg, max_tokens=200)
