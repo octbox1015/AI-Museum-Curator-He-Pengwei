@@ -1,29 +1,20 @@
 # 🏛️ AI Museum Curator — Greek Mythology Edition
 
-Interactive Streamlit web app that connects MET Museum data with OpenAI to create curator-level artwork interpretations and provide a hands-on interactive experience.
+Interactive Streamlit app connecting MET Museum data with OpenAI to produce curator-level artwork analyses and interactive experiences.
 
----
-
-## Key features (final version)
-- Browse a comprehensive list of Greek gods, heroes, and creatures.  
-- Short human-written bios + AI-expanded museum-style introductions.  
-- Fetch related artworks from the MET API; thumbnails displayed immediately when images accessible.  
-- Works & Analysis: **Selected artwork view** (Gallery hidden when a work is selected), large centered image (approx 600px wide) and structured explanation sections (Identification, Overview, Context, Artistic Features, Iconography, Exhibition Notes).  
-- Interactive Art Zone: detail questions, sketch style hints, myth identifier, Jungian-style Myth Archetype Matcher, image generation.  
-- Home page includes session-only OpenAI API Key input.  
-- Robust MET image fetching (primaryImageSmall → primaryImage → additionalImages).
-
----
+## What’s special in this version
+- Greek Deities: fetch all relevant MET works that **actually have accessible images** (no fake images). You can increase `Max results` slider up to 200 to try more records.
+- Works & Analysis: **left–right layout** (left large image ~600px, right structured metadata & AI content). When a work is selected, gallery hides (focus view). Click **Back to Gallery** to return.
+- Robust image fallback: primaryImageSmall → primaryImage → additionalImages.
+- Interactive Art Zone: detail Q&A, sketch style hints, myth ID, Jungian Myth Archetype Matcher, image generation.
 
 ## Quick start
-1. Install dependencies: `pip install -r requirements.txt`  
-2. Run: `streamlit run app.py`  
-3. On Home page paste your OpenAI API Key (session-only) and Save (or set `OPENAI_API_KEY` as environment variable / Streamlit Secrets).  
-4. Use **Greek Deities** → select figure → Fetch related works → click a thumbnail → go to **Works & Analysis** to see the selected artwork's page.  
-5. Use **Interactive Art Zone** for close-looking and creative interactions.
+1. `pip install -r requirements.txt`  
+2. `streamlit run app.py`  
+3. On Home page paste your OpenAI API Key (session-only) or set `OPENAI_API_KEY` in environment/Secrets.
+4. Go to **Greek Deities** → choose figure → Fetch related works → select thumbnail → view detail in **Works & Analysis**.
 
----
+## Course slides (reference)
+The app references the course PDF uploaded during development at:
 
-## Note about the provided course slides
-The app references a course PDF uploaded during development at:
 
