@@ -1,43 +1,26 @@
-# 🏛️ AI Museum Curator — Greek Mythology Edition
+# AI Museum Curator — Greek Mythology Edition
 
-This Streamlit web application combines:
-- MET Museum Open API (real artworks)
-- Greek mythology data
-- AI curator explanations
-- A full hierarchical genealogy tree (“Mythic Lineages”)
+Interactive Streamlit app that fetches artwork metadata from The Metropolitan Museum of Art and uses (optional) OpenAI models to generate curator-style explanations, plus visualizations.
 
----
+## Features
+- Browse Greek deities and fetch related MET artworks (only displays artworks with downloadable images).  
+- Works & Analysis: left–right layout (large image + structured information).  
+- Interactive Art Zone: visual-detail Q&A, sketch analysis, myth identifier, Jungian-style archetype mapping, image generation (requires OpenAI).  
+- Mythology Network: interactive relationship graph (PyVis).  
+- Artwork Timeline: scatter + histogram of artwork begin dates (Plotly).  
+- About section: each artwork page shows metadata and an "About this artwork page" note.  
+- Data source: MET Museum Open API.
 
-## 🔧 How to Run
+## Quick start
+1. `pip install -r requirements.txt`  
+2. `streamlit run app.py`  
+3. On Home tab paste your OpenAI API Key (session-only) to enable AI features.
 
-### 1. Install dependencies
+## Local course PDF (development reference)
+The app references the local course PDF used in development at:
+`/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf`
 
-
-### 2. Run Streamlit
-
-
-### 3. Enter Your API Key
-Open the app → Sidebar → Enter OpenAI API Key.
-
----
-
-## 🧠 Features
-
-### **1. Greek Deities Explorer**
-Select a deity → App fetches real MET artworks → AI generates explanations.
-
-### **2. Works & Analysis**
-Search by keyword → browse images, metadata, curator notes.
-
-### **3. Mythic Lineages**
-A hierarchical, museum-style genealogy:
-Primordial gods → Titans → Olympians → Semi-gods → Heroes.
-
----
-
-## 🎨 Data Source
-MET Museum Open API  
-https://metmuseum.github.io
-
-
-
+## Notes
+- Fetching many MET records can take time; adjust sliders to control the number.  
+- AI features require a valid OpenAI key and may consume credits.  
+- If the network graph fails in some environments, the app will show an error message but continue to function.
