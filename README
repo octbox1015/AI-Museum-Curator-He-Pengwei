@@ -1,26 +1,17 @@
 # AI Museum Curator — Greek Mythology Edition
 
-Interactive Streamlit app that fetches artwork metadata from The Metropolitan Museum of Art and uses (optional) OpenAI models to generate curator-style explanations, plus visualizations.
+An interactive Streamlit app that fetches artwork metadata from The Metropolitan Museum of Art (MET) and uses optional OpenAI models to generate museum-style curator explanations. Includes a hierarchical genealogy of Greek mythology (Mythic Lineages).
 
 ## Features
-- Browse Greek deities and fetch related MET artworks (only displays artworks with downloadable images).  
-- Works & Analysis: left–right layout (large image + structured information).  
-- Interactive Art Zone: visual-detail Q&A, sketch analysis, myth identifier, Jungian-style archetype mapping, image generation (requires OpenAI).  
-- Mythology Network: interactive relationship graph (PyVis).  
-- Artwork Timeline: scatter + histogram of artwork begin dates (Plotly).  
-- About section: each artwork page shows metadata and an "About this artwork page" note.  
-- Data source: MET Museum Open API.
+- Browse Greek deities and fetch **real** MET artworks (only artworks with downloadable images are shown).
+- Works & Analysis: left–right layout with a large image and a structured information panel (Object Info + About + AI sections).
+- Interactive Art Zone: visual-detail questions, sketch/style analyzer, myth identifier, archetype quiz, and optional image generation (OpenAI).
+- Mythic Lineages: hierarchical family tree (Graphviz) from primordial gods to heroes.
+- Data Source: MET Museum Open API.
 
 ## Quick start
-1. `pip install -r requirements.txt`  
-2. `streamlit run app.py`  
-3. On Home tab paste your OpenAI API Key (session-only) to enable AI features.
-
-## Local course PDF (development reference)
-The app references the local course PDF used in development at:
-`/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf`
-
-## Notes
-- Fetching many MET records can take time; adjust sliders to control the number.  
-- AI features require a valid OpenAI key and may consume credits.  
-- If the network graph fails in some environments, the app will show an error message but continue to function.
+1. Create a Python environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # mac/linux
+venv\Scripts\activate     # windows
