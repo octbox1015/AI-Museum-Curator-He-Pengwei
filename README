@@ -1,17 +1,17 @@
 # AI Museum Curator — Greek Mythology Edition
 
-An interactive Streamlit app that fetches artwork metadata from The Metropolitan Museum of Art (MET) and uses optional OpenAI models to generate museum-style curator explanations. Includes a hierarchical genealogy of Greek mythology (Mythic Lineages).
+## Overview
+This Streamlit app allows users to explore Greek gods, heroes, creatures, and related works via The MET Open API. It includes curator-level insights and AI-generated content (optional with OpenAI API key).
 
 ## Features
-- Browse Greek deities and fetch **real** MET artworks (only artworks with downloadable images are shown).
-- Works & Analysis: left–right layout with a large image and a structured information panel (Object Info + About + AI sections).
-- Interactive Art Zone: visual-detail questions, sketch/style analyzer, myth identifier, archetype quiz, and optional image generation (OpenAI).
-- Mythic Lineages: hierarchical family tree (Graphviz) from primordial gods to heroes.
-- Data Source: MET Museum Open API.
+- **Greek Deities & Works**: Search a mythological figure and view artworks, manuscripts, books, and artifacts.  
+- **AI-enhanced content**: Expanded biographies, artwork overview, historical context, and iconography.  
+- **Interactive Art Zone**: Ask questions about visual details or identify mythic scenes.  
+- **Grid / Expander UI**: Clean card-style layout with collapsible details.
 
-## Quick start
-1. Create a Python environment:
+## Installation
 ```bash
-python -m venv venv
-source venv/bin/activate  # mac/linux
-venv\Scripts\activate     # windows
+pip install -r requirements.txt
+streamlit run app.py
+
+
