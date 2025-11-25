@@ -13,7 +13,8 @@ try:
 except Exception:
     openai = None
 
-# Graphviz removed, so no import
+# Graphviz removed
+Digraph = None
 
 # ---------------- Page config ----------------
 st.set_page_config(page_title="AI Museum Curator — Greek Myth", layout="wide")
@@ -22,8 +23,6 @@ st.title("🏛️ AI Museum Curator — Greek Mythology Edition")
 # ---------------- Constants ----------------
 MET_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search"
 MET_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects/{}"
-
-COURSE_PDF_PATH = "/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf"
 
 MYTH_LIST = [
     "Zeus","Hera","Athena","Apollo","Artemis","Aphrodite","Hermes","Dionysus","Ares","Hephaestus",
@@ -173,7 +172,7 @@ Explore Greek gods, heroes, and mythic creatures via the MET Museum collections 
 1. Open **Greek Deities**, choose a figure and fetch related works.  
 2. Click a thumbnail to select an artwork → switch to **Works & Analysis** to see details.  
 3. Use **Interactive Art Zone** for close-looking, sketch analysis, myth ID, archetype quiz, or image generation (requires OpenAI key).  
-4. Explore **Mythic Lineages** to see the hierarchical genealogy.
+4. Mythic Lineages tab is currently disabled (Graphviz removed).
     """)
     st.subheader("OpenAI API Key (session only)")
     key = st.text_input("Paste your OpenAI API Key (sk-...):", type="password", key="home_api_input")
@@ -183,9 +182,6 @@ Explore Greek gods, heroes, and mythic creatures via the MET Museum collections 
             st.success("API Key saved to session. AI features enabled.")
         else:
             st.warning("Please paste a valid API key.")
-    st.markdown("---")
-    st.markdown("Course slides (reference):")
-    st.markdown(f"[Open course PDF]({COURSE_PDF_PATH})")
 
 # ---------------- GREEK DEITIES ----------------
 with tabs[1]:
@@ -306,22 +302,6 @@ with tabs[2]:
                 st.markdown(f"🔗 [View on The MET Website]({meta.get('objectURL')})")
 
             st.markdown("---")
-            st.markdown("### About This Artwork Page")
-            st.markdown(f"""
-This page displays real artwork metadata retrieved directly from **The Metropolitan Museum of Art**.
-
-The AI-generated curator texts (Overview, Context, Iconography) rely on this metadata to ensure accuracy and consistency.
-
-**Data Source:** MET Museum Open API
-
-Example (metadata snippet):
-- Object ID: {art_id}
-- Title: {meta.get('title')}
-- Artist: {meta.get('artistDisplayName') or 'Unknown'}
-- Medium: {meta.get('medium') or '—'}
-            """)
-
-            st.markdown("---")
             client = get_openai_client()
             st.markdown("#### Overview")
             if client:
@@ -347,30 +327,8 @@ Example (metadata snippet):
             else:
                 st.write("(Enable OpenAI API Key)")
 
-            st.markdown("#### Exhibition Notes")
-            st.write("Placement suggestion, related objects, and label length recommendations (AI when enabled).")
-
     else:
         st.info("No artwork selected. Go to 'Greek Deities' and fetch/select works.")
-        thumbs = st.session_state.get("thumbs_data", [])
-        if thumbs:
-            per_page = st.number_input("Thumbnails per page (works gallery)", min_value=8, max_value=48, value=24, step=4, key="wa_per_page")
-            pages = math.ceil(len(thumbs)/per_page)
-            page = st.number_input("Gallery page (Works)", min_value=1, max_value=max(1,pages), value=1, key="wa_gallery_page")
-            start = (page-1)*per_page
-            page_items = thumbs[start:start+per_page]
-            rows = math.ceil(len(page_items)/4)
-            for r in range(rows):
-                cols = st.columns(4)
-                for c in range(4):
-                    idx = r*4 + c
-                    if idx < len(page_items):
-                        oid, meta, img = page_items[idx]
-                        with cols[c]:
-                            st.image(img.resize((220,220)), caption=f"{meta.get('title') or meta.get('objectName')} ({oid})")
-                            if st.button("Select", key=f"wa_select_{oid}"):
-                                st.session_state["selected_artwork"] = oid
-                                st.rerun()
 
 # ---------------- INTERACTIVE ART ZONE ----------------
 with tabs[3]:
@@ -390,7 +348,20 @@ with tabs[3]:
                     with st.spinner("Answering..."):
                         st.write(ai_answer_detail(client, q, meta))
                 else:
-                    st.warning("Enable OpenAI API Key on Home.")
+                    st.warning("Enable OpenAI API Key.")
+
+        st.markdown("---")
+        st.subheader("Style Analyzer — Upload sketch or photo")
+        uploaded = st.file_uploader("Upload sketch/photo", type=["png","jpg","jpeg"], key="style_upload")
+        note = st.text_input("Describe sketch (lines, shapes, pose)...", key="style_note")
+        if uploaded and st.button("Analyze sketch", key="analyze_sketch_btn"):
+            if client:
+                image = Image.open(BytesIO(uploaded.getvalue())).convert("RGB")
+                st.image(image, caption="Uploaded")
+                with st.spinner("Analyzing style..."):
+                    st.write(ai_style_match(client, note or "User sketch"))
+            else:
+                st.warning("Enable OpenAI API Key.")
 
     else:
         st.subheader("Greek Myth Identifier / Personality Archetype Quiz")
@@ -415,4 +386,3 @@ with tabs[3]:
 with tabs[4]:
     st.header("🌳 Mythic Lineages — Greek Myth Family Tree (Disabled)")
     st.info("Graphviz-based lineage tree has been removed. This tab is currently disabled. Other app features remain fully functional.")
-
