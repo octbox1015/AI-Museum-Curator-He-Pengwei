@@ -13,9 +13,6 @@ try:
 except Exception:
     openai = None
 
-# Graphviz removed
-Digraph = None
-
 # ---------------- Page config ----------------
 st.set_page_config(page_title="AI Museum Curator — Greek Myth", layout="wide")
 st.title("🏛️ AI Museum Curator — Greek Mythology Edition")
@@ -58,9 +55,6 @@ def met_get_object_cached(object_id: int):
         return r.json()
     except Exception:
         return {}
-
-def met_get_object(object_id: int):
-    return met_get_object_cached(object_id)
 
 def fetch_image_from_meta(meta):
     candidates = []
@@ -159,7 +153,7 @@ def ai_personality_archetype(client, answers):
     return chat_complete(client, prompt, max_tokens=400)
 
 # ---------------- UI Layout (tabs) ----------------
-tabs = st.tabs(["Home","Greek Deities","Works & Analysis","Interactive Art Zone","Mythic Lineages"])
+tabs = st.tabs(["Home","Greek Deities","Works & Analysis","Interactive Art Zone"])
 
 # ---------------- HOME ----------------
 with tabs[0]:
@@ -169,10 +163,9 @@ with tabs[0]:
 Explore Greek gods, heroes, and mythic creatures via the MET Museum collections and receive curator-level AI interpretations (optional).
 
 **Quick guide**
-1. Open **Greek Deities**, choose a figure and fetch related works.  
+1. Open **Greek Deities**, browse deities and see most famous related works.  
 2. Click a thumbnail to select an artwork → switch to **Works & Analysis** to see details.  
 3. Use **Interactive Art Zone** for close-looking, sketch analysis, myth ID, archetype quiz, or image generation (requires OpenAI key).  
-4. Mythic Lineages tab is currently disabled (Graphviz removed).
     """)
     st.subheader("OpenAI API Key (session only)")
     key = st.text_input("Paste your OpenAI API Key (sk-...):", type="password", key="home_api_input")
@@ -210,91 +203,76 @@ with tabs[1]:
     st.markdown("#### Related search aliases")
     st.write(generate_aliases(selected))
     st.markdown("---")
-    st.write("Fetch accessible artworks related to this figure (only show items with downloadable images).")
-    max_results = st.slider("Max MET results to try", 40, 300, 120, 20, key="deity_max_results")
-    if st.button("Fetch related works from MET", key="fetch_deity_btn"):
-        aliases = generate_aliases(selected)
-        all_ids = []
-        for alias in aliases:
-            ids = met_search_ids(alias, max_results)
-            for oid in ids:
-                if oid not in all_ids:
-                    all_ids.append(oid)
-        if not all_ids:
-            st.info("No works found.")
-            st.session_state.pop("related_ids", None)
-            st.session_state.pop("thumbs_data", None)
-        else:
-            st.success(f"Found {len(all_ids)} candidate works — loading images (only images will be kept).")
-            thumbs = []
-            progress = st.progress(0)
-            total = max(1, len(all_ids))
-            for i, oid in enumerate(all_ids):
-                meta = met_get_object(oid)
-                if meta:
-                    img = fetch_image_from_meta(meta)
+    st.write("Most famous works related to Greek Mythology (art, manuscripts, books, and artifacts).")
+
+    max_results = 40
+    if "greek_myth_objects" not in st.session_state:
+        all_ids = met_search_ids("Greek Mythology", max_results)
+        thumbs = []
+        for oid in all_ids:
+            meta = met_get_object_cached(oid)
+            if meta:
+                img = fetch_image_from_meta(meta)
+                thumbs.append((oid, meta, img))
+        st.session_state["greek_myth_objects"] = thumbs
+
+    thumbs = st.session_state.get("greek_myth_objects", [])
+    per_page = st.number_input("Thumbnails per page (Greek Myth Gallery)", min_value=8, max_value=48, value=24, step=4, key="greek_myth_per_page")
+    pages = math.ceil(len(thumbs)/per_page)
+    page = st.number_input("Gallery page", min_value=1, max_value=max(1,pages), value=1, key="greek_myth_gallery_page")
+    start = (page-1)*per_page
+    page_items = thumbs[start:start+per_page]
+    rows = math.ceil(len(page_items)/4)
+    for r in range(rows):
+        cols = st.columns(4)
+        for c in range(4):
+            idx = r*4 + c
+            if idx < len(page_items):
+                oid, meta, img = page_items[idx]
+                with cols[c]:
                     if img:
-                        thumbs.append((oid, meta, img))
-                progress.progress(min(100, int((i+1)/total*100)))
-                time.sleep(0.01)
-            progress.empty()
-            if not thumbs:
-                st.info("Found works but none had accessible images.")
-                st.session_state["related_ids"] = []
-                st.session_state.pop("thumbs_data", None)
-            else:
-                st.session_state["related_ids"] = [t[0] for t in thumbs]
-                st.session_state["thumbs_data"] = thumbs
-                st.success(f"Loaded {len(thumbs)} artworks with images.")
-                per_page = st.number_input("Thumbnails per page (deity gallery)", min_value=8, max_value=48, value=24, step=4, key="deity_per_page")
-                pages = math.ceil(len(thumbs)/per_page)
-                page = st.number_input("Gallery page (Deity)", min_value=1, max_value=max(1,pages), value=1, key="deity_gallery_page")
-                start = (page-1)*per_page
-                page_items = thumbs[start:start+per_page]
-                rows = math.ceil(len(page_items)/4)
-                for r in range(rows):
-                    cols = st.columns(4)
-                    for c in range(4):
-                        idx = r*4 + c
-                        if idx < len(page_items):
-                            oid, meta, img = page_items[idx]
-                            with cols[c]:
-                                st.image(img.resize((220,220)), caption=f"{meta.get('title') or meta.get('objectName')} ({oid})")
-                                if st.button("Select", key=f"deity_select_{oid}"):
-                                    st.session_state["selected_artwork"] = oid
-                                    st.success(f"Selected {oid}. Switch to Works & Analysis to view details.")
+                        st.image(img.resize((220,220)), caption=f"{meta.get('title') or meta.get('objectName')} ({oid})")
+                    else:
+                        st.write(f"{meta.get('title') or meta.get('objectName')} ({oid})")
+                    if st.button("Select", key=f"deity_select_{oid}"):
+                        st.session_state["selected_artwork"] = oid
+                        st.success(f"Selected {oid}. Switch to Works & Analysis to view details.")
 
 # ---------------- WORKS & ANALYSIS ----------------
 with tabs[2]:
-    st.header("Works & Analysis — Structured View")
+    st.header("Works & Analysis — Greek Mythology Highlights")
+    client = get_openai_client()
+    # 默认加载希腊神话相关作品
+    if "selected_artwork" not in st.session_state:
+        thumbs = st.session_state.get("greek_myth_objects", [])
+        if thumbs:
+            st.session_state["selected_artwork"] = thumbs[0][0]  # 默认第一件
+
     if "selected_artwork" in st.session_state:
         art_id = st.session_state["selected_artwork"]
-        meta = met_get_object(art_id)
-        left, right = st.columns([0.5, 0.5])
+        meta = met_get_object_cached(art_id)
+        left, right = st.columns([0.5,0.5])
 
         with left:
             img = fetch_image_from_meta(meta)
             if img:
                 max_w = 700
-                w, h = img.size
+                w,h = img.size
                 if w > max_w:
                     img = img.resize((max_w, int(h*(max_w/w))))
                 st.image(img, use_column_width=False)
             else:
                 st.info("No image available.")
-            if st.button("Back to Gallery", key="back_to_gallery"):
-                st.session_state.pop("selected_artwork", None)
-                st.rerun()
 
         with right:
             st.subheader("Artwork Information")
             st.markdown(f"### **{meta.get('title') or meta.get('objectName') or 'Untitled'}**")
             st.write(f"**Object ID:** {art_id}")
-            st.write(f"**Artist:** {meta.get('artistDisplayName') or 'Unknown'}")
+            st.write(f"**Artist / Author:** {meta.get('artistDisplayName') or meta.get('creditLine') or 'Unknown'}")
             st.write(f"**Culture:** {meta.get('culture') or '—'}")
             st.write(f"**Department:** {meta.get('department') or '—'}")
             st.write(f"**Date:** {meta.get('objectDate') or '—'}")
-            st.write(f"**Medium:** {meta.get('medium') or '—'}")
+            st.write(f"**Medium / Type:** {meta.get('medium') or meta.get('objectName') or '—'}")
             st.write(f"**Dimensions:** {meta.get('dimensions') or '—'}")
             st.write(f"**Classification:** {meta.get('classification') or '—'}")
             st.write(f"**Accession Number:** {meta.get('accessionNumber') or '—'}")
@@ -302,33 +280,18 @@ with tabs[2]:
                 st.markdown(f"🔗 [View on The MET Website]({meta.get('objectURL')})")
 
             st.markdown("---")
-            client = get_openai_client()
-            st.markdown("#### Overview")
+            st.markdown("### AI-generated Curator Notes")
             if client:
                 with st.spinner("Generating overview..."):
                     st.write(generate_overview(client, meta))
-            else:
-                st.write("(Enable OpenAI API Key on Home to auto-generate overview)")
-
-            st.markdown("#### Historical & Artistic Context")
-            if client:
                 with st.spinner("Generating context..."):
                     st.write(generate_context(client, meta))
-            else:
-                st.write("(Enable OpenAI API Key on Home to auto-generate context)")
-
-            st.markdown("#### Artistic Features")
-            st.write("Materials, technique, composition — AI will expand when API enabled.")
-
-            st.markdown("#### Iconography & Myth Interpretation")
-            if client:
                 with st.spinner("Analyzing iconography..."):
                     st.write(generate_iconography(client, meta))
             else:
-                st.write("(Enable OpenAI API Key)")
-
+                st.write("(Enable OpenAI API Key to generate curator notes.)")
     else:
-        st.info("No artwork selected. Go to 'Greek Deities' and fetch/select works.")
+        st.info("No works available.")
 
 # ---------------- INTERACTIVE ART ZONE ----------------
 with tabs[3]:
@@ -341,14 +304,14 @@ with tabs[3]:
         if "selected_artwork" not in st.session_state:
             st.info("Select an artwork first in Works & Analysis.")
         else:
-            meta = met_get_object(st.session_state["selected_artwork"])
+            meta = met_get_object_cached(st.session_state["selected_artwork"])
             q = st.text_input("Ask about a visual detail (e.g., 'What does the owl mean?')", key="detail_q")
             if st.button("Ask detail", key="ask_detail_btn"):
                 if client:
                     with st.spinner("Answering..."):
                         st.write(ai_answer_detail(client, q, meta))
                 else:
-                    st.warning("Enable OpenAI API Key.")
+                    st.error("OpenAI client not configured. Enter API key on Home.")
 
         st.markdown("---")
         st.subheader("Style Analyzer — Upload sketch or photo")
@@ -361,28 +324,28 @@ with tabs[3]:
                 with st.spinner("Analyzing style..."):
                     st.write(ai_style_match(client, note or "User sketch"))
             else:
-                st.warning("Enable OpenAI API Key.")
+                st.error("OpenAI client not configured. Enter API key on Home.")
 
     else:
-        st.subheader("Greek Myth Identifier / Personality Archetype Quiz")
-        desc = st.text_area("Describe a figure / hero / creature (appearance or traits):", key="desc_input")
-        if st.button("Identify Mythic Figure", key="identify_myth_btn"):
+        st.subheader("Myth Identifier — one-sentence description")
+        desc = st.text_input("Describe a scene or motif:", key="myth_desc")
+        if st.button("Identify myth", key="identify_myth_btn"):
             if client:
-                with st.spinner("Analyzing description..."):
+                with st.spinner("Identifying..."):
                     st.write(ai_myth_identifier(client, desc))
             else:
-                st.warning("Enable OpenAI API Key.")
+                st.error("OpenAI client not configured. Enter API key on Home.")
 
-        st.markdown("#### Archetype Quiz — select some traits to get a Greek myth archetype")
-        traits = st.multiselect("Pick traits:", ["Brave","Wise","Vengeful","Compassionate","Cunning","Romantic","Tragic","Heroic","Mysterious"])
-        if st.button("Get Archetype", key="archetype_btn"):
+        st.markdown("---")
+        st.subheader("Myth Archetype Matcher — (Jungian-style)")
+        a1 = st.selectbox("Preferred role in a team:", ["Leader","Supporter","Strategist","Creator"], key="arch_q1")
+        a2 = st.selectbox("Which drives you most:", ["Duty","Fame","Pleasure","Wisdom"], key="arch_q2")
+        a3 = st.selectbox("You respond to crisis by:", ["Plan","Fight","Flee","Negotiate"], key="arch_q3")
+        a4 = st.selectbox("Which image appeals most:", ["Eagle","Owl","Serpent","Laurel"], key="arch_q4")
+        if st.button("Get my archetype", key="get_archetype_btn"):
             if client:
-                with st.spinner("Mapping to archetype..."):
-                    st.write(ai_personality_archetype(client, traits))
+                answers = {"role":a1,"drive":a2,"crisis":a3,"image":a4}
+                with st.spinner("Mapping archetype..."):
+                    st.write(ai_personality_archetype(client, answers))
             else:
-                st.warning("Enable OpenAI API Key.")
-
-# ---------------- MYTHIC LINEAGES (Graphviz removed) ----------------
-with tabs[4]:
-    st.header("🌳 Mythic Lineages — Greek Myth Family Tree (Disabled)")
-    st.info("Graphviz-based lineage tree has been removed. This tab is currently disabled. Other app features remain fully functional.")
+                st.error("OpenAI client not configured. Enter API key on Home.")
