@@ -6,7 +6,6 @@ from PIL import Image
 import os
 import math
 import time
-import re
 
 # Optional AI client
 try:
@@ -14,11 +13,7 @@ try:
 except Exception:
     openai = None
 
-# Graphviz for Mythic Lineages tree
-try:
-    from graphviz import Digraph
-except Exception:
-    Digraph = None
+# Graphviz removed, so no import
 
 # ---------------- Page config ----------------
 st.set_page_config(page_title="AI Museum Curator — Greek Myth", layout="wide")
@@ -28,7 +23,6 @@ st.title("🏛️ AI Museum Curator — Greek Mythology Edition")
 MET_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search"
 MET_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects/{}"
 
-# Local course PDF path (developer-provided). Will be used in README / Home.
 COURSE_PDF_PATH = "/mnt/data/LN_-_Art_and_Advanced_Big_Data_-_W12_-_Designing_%26_Implementing_with_AI (1).pdf"
 
 MYTH_LIST = [
@@ -70,7 +64,6 @@ def met_get_object(object_id: int):
     return met_get_object_cached(object_id)
 
 def fetch_image_from_meta(meta):
-    # try several fields for image URLs
     candidates = []
     if meta.get("primaryImageSmall"):
         candidates.append(meta["primaryImageSmall"])
@@ -129,7 +122,6 @@ def chat_complete(client, prompt, max_tokens=400, temperature=0.2, system="You a
             max_tokens=max_tokens,
             temperature=temperature
         )
-        # fallback handling
         return resp.choices[0].message.content
     except Exception as e:
         return f"OpenAI error: {e}"
@@ -192,7 +184,6 @@ Explore Greek gods, heroes, and mythic creatures via the MET Museum collections 
         else:
             st.warning("Please paste a valid API key.")
     st.markdown("---")
-    # show the course slides link (local path)
     st.markdown("Course slides (reference):")
     st.markdown(f"[Open course PDF]({COURSE_PDF_PATH})")
 
@@ -300,7 +291,6 @@ with tabs[2]:
                 st.rerun()
 
         with right:
-            # ================= Object Info + About =================
             st.subheader("Artwork Information")
             st.markdown(f"### **{meta.get('title') or meta.get('objectName') or 'Untitled'}**")
             st.write(f"**Object ID:** {art_id}")
@@ -332,7 +322,6 @@ Example (metadata snippet):
             """)
 
             st.markdown("---")
-            # ================= AI Sections =================
             client = get_openai_client()
             st.markdown("#### Overview")
             if client:
@@ -401,89 +390,29 @@ with tabs[3]:
                     with st.spinner("Answering..."):
                         st.write(ai_answer_detail(client, q, meta))
                 else:
-                    st.error("OpenAI client not configured. Enter API key on Home.")
-
-        st.markdown("---")
-        st.subheader("Style Analyzer — Upload sketch or photo")
-        uploaded = st.file_uploader("Upload sketch/photo", type=["png","jpg","jpeg"], key="style_upload")
-        note = st.text_input("Describe sketch (lines, shapes, pose)...", key="style_note")
-        if uploaded and st.button("Analyze sketch", key="analyze_sketch_btn"):
-            if client:
-                image = Image.open(BytesIO(uploaded.getvalue())).convert("RGB")
-                st.image(image, caption="Uploaded")
-                with st.spinner("Analyzing style..."):
-                    st.write(ai_style_match(client, note or "User sketch"))
-            else:
-                st.error("OpenAI client not configured. Enter API key on Home.")
+                    st.warning("Enable OpenAI API Key on Home.")
 
     else:
-        st.subheader("Myth Identifier — one-sentence description")
-        desc = st.text_input("Describe a scene or motif:", key="myth_desc")
-        if st.button("Identify myth", key="identify_myth_btn"):
+        st.subheader("Greek Myth Identifier / Personality Archetype Quiz")
+        desc = st.text_area("Describe a figure / hero / creature (appearance or traits):", key="desc_input")
+        if st.button("Identify Mythic Figure", key="identify_myth_btn"):
             if client:
-                with st.spinner("Identifying..."):
+                with st.spinner("Analyzing description..."):
                     st.write(ai_myth_identifier(client, desc))
             else:
-                st.error("OpenAI client not configured. Enter API key on Home.")
+                st.warning("Enable OpenAI API Key.")
 
-        st.markdown("---")
-        st.subheader("Myth Archetype Matcher — (Jungian-style)")
-        a1 = st.selectbox("Preferred role in a team:", ["Leader","Supporter","Strategist","Creator"], key="arch_q1")
-        a2 = st.selectbox("Which drives you most:", ["Duty","Fame","Pleasure","Wisdom"], key="arch_q2")
-        a3 = st.selectbox("You respond to crisis by:", ["Plan","Fight","Flee","Negotiate"], key="arch_q3")
-        a4 = st.selectbox("Which image appeals most:", ["Eagle","Owl","Serpent","Laurel"], key="arch_q4")
-        if st.button("Get my archetype", key="get_archetype_btn"):
+        st.markdown("#### Archetype Quiz — select some traits to get a Greek myth archetype")
+        traits = st.multiselect("Pick traits:", ["Brave","Wise","Vengeful","Compassionate","Cunning","Romantic","Tragic","Heroic","Mysterious"])
+        if st.button("Get Archetype", key="archetype_btn"):
             if client:
-                answers = {"role":a1,"drive":a2,"crisis":a3,"image":a4}
-                with st.spinner("Mapping archetype..."):
-                    st.write(ai_personality_archetype(client, answers))
+                with st.spinner("Mapping to archetype..."):
+                    st.write(ai_personality_archetype(client, traits))
             else:
-                st.error("OpenAI client not configured. Enter API key on Home.")
+                st.warning("Enable OpenAI API Key.")
 
-# ---------------- MYTHIC LINEAGES (Graphviz Tree) ----------------
+# ---------------- MYTHIC LINEAGES (Graphviz removed) ----------------
 with tabs[4]:
-    st.header("🌳 Mythic Lineages — Greek Myth Family Tree")
-    st.markdown("This genealogical tree shows major lineages from primordial gods, to Titans, Olympians, and heroes.")
+    st.header("🌳 Mythic Lineages — Greek Myth Family Tree (Disabled)")
+    st.info("Graphviz-based lineage tree has been removed. This tab is currently disabled. Other app features remain fully functional.")
 
-    if Digraph is None:
-        st.error("Graphviz is not installed. Install 'graphviz' and system graphviz package to view the lineage tree.")
-    else:
-        dot = Digraph("GreekMythTree", format="svg")
-        dot.attr(rankdir="TB", size="8,8", nodesep="0.4", ranksep="0.6")
-
-        primordial = ["Chaos", "Gaia", "Tartarus", "Eros"]
-        for p in primordial:
-            dot.node(p, shape="oval", style="filled", fillcolor="#fdebd0")
-
-        titans = ["Uranus", "Cronus", "Rhea", "Oceanus", "Tethys", "Hyperion", "Theia", "Iapetus"]
-        for t in titans:
-            dot.node(t, shape="oval", style="filled", fillcolor="#d6eaf8")
-
-        olympians = [
-            "Zeus", "Hera", "Poseidon", "Hades", "Demeter", "Hestia",
-            "Apollo", "Artemis", "Athena", "Ares", "Hermes", "Dionysus", "Aphrodite", "Hephaestus"
-        ]
-        for o in olympians:
-            dot.node(o, shape="oval", style="filled", fillcolor="#d5f5e3")
-
-        heroes = ["Heracles", "Perseus", "Theseus", "Odysseus", "Achilles", "Jason", "Orpheus"]
-        for h in heroes:
-            dot.node(h, shape="oval", style="filled", fillcolor="#f9e79f")
-
-        relations = [
-            ("Chaos", "Gaia"), ("Chaos", "Tartarus"), ("Gaia", "Uranus"),
-            ("Gaia", "Cronus"), ("Gaia", "Rhea"), ("Uranus", "Cronus"), ("Uranus", "Rhea"),
-            ("Cronus", "Zeus"), ("Cronus", "Hera"), ("Cronus", "Poseidon"), ("Cronus", "Hades"),
-            ("Cronus", "Demeter"), ("Cronus", "Hestia"),
-            ("Zeus", "Ares"), ("Zeus", "Apollo"), ("Zeus", "Artemis"), ("Zeus", "Athena"),
-            ("Zeus", "Hermes"), ("Zeus", "Dionysus"), ("Zeus", "Aphrodite"), ("Hera", "Hephaestus"),
-            ("Zeus", "Heracles"), ("Zeus", "Perseus"), ("Poseidon", "Theseus"), ("Hermes", "Odysseus"),
-            ("Peleus", "Achilles"), ("Aeson", "Jason"), ("Apollo", "Orpheus")
-        ]
-        for parent, child in relations:
-            dot.edge(parent, child)
-
-        svg = dot.pipe().decode("utf-8")
-        st.write(svg, unsafe_allow_html=True)
-
-# ---------------- End of app ----------------
