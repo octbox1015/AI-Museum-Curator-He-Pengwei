@@ -1,3 +1,6 @@
+from graphviz import Digraph
+import streamlit as st
+
 import streamlit as st
 import requests
 from io import BytesIO
@@ -451,5 +454,95 @@ with tabs[5]:
         st.plotly_chart(fig, use_container_width=True)
         hist = px.histogram(df, x="year", nbins=20, title="Distribution of object dates")
         st.plotly_chart(hist, use_container_width=True)
+
+# ---- MYTHIC LINEAGES (Graphviz Tree) ----
+with tab_lineages:
+    st.header("🌳 Mythic Lineages — Greek Myth Family Tree")
+
+    st.markdown("""
+This genealogical tree shows the major divine and heroic lineages in Greek mythology —  
+from the **Primordial Gods**, to the **Titans**, the **Olympian Gods**, and the **Heroic Age**.
+
+Each level uses different colors for readability:
+- 🟠 Primordial Gods  
+- 🔵 Titans  
+- 🟢 Olympians  
+- 🟡 Heroes  
+    """)
+
+    # Create Graphviz diagram
+    dot = Digraph("GreekMythTree", format="svg")
+    dot.attr(rankdir="TB", size="8,8", nodesep="0.4", ranksep="0.6")  # Top → Bottom tree
+
+    # ---------- LAYERS & COLORS ----------
+    primordial = ["Chaos", "Gaia", "Tartarus", "Eros"]
+    for p in primordial:
+        dot.node(p, shape="oval", style="filled", fillcolor="#fdebd0")  # light orange
+
+    titans = [
+        "Uranus", "Cronus", "Rhea",
+        "Oceanus", "Tethys", "Hyperion", "Theia", "Iapetus"
+    ]
+    for t in titans:
+        dot.node(t, shape="oval", style="filled", fillcolor="#d6eaf8")  # light blue
+
+    olympians = [
+        "Zeus", "Hera", "Poseidon", "Hades", "Demeter", "Hestia",
+        "Apollo", "Artemis", "Athena", "Ares",
+        "Hermes", "Dionysus", "Aphrodite", "Hephaestus"
+    ]
+    for o in olympians:
+        dot.node(o, shape="oval", style="filled", fillcolor="#d5f5e3")  # light green
+
+    heroes = ["Heracles", "Perseus", "Theseus", "Odysseus", "Achilles", "Jason", "Orpheus"]
+    for h in heroes:
+        dot.node(h, shape="oval", style="filled", fillcolor="#f9e79f")  # light yellow
+
+    # ---------- RELATIONSHIPS ----------
+    relations = [
+        ("Chaos", "Gaia"),
+        ("Chaos", "Tartarus"),
+        ("Gaia", "Uranus"),
+
+        ("Gaia", "Cronus"),
+        ("Gaia", "Rhea"),
+        ("Uranus", "Cronus"),
+        ("Uranus", "Rhea"),
+
+        # Olympian generation
+        ("Cronus", "Zeus"),
+        ("Cronus", "Hera"),
+        ("Cronus", "Poseidon"),
+        ("Cronus", "Hades"),
+        ("Cronus", "Demeter"),
+        ("Cronus", "Hestia"),
+
+        # Zeus children
+        ("Zeus", "Ares"),
+        ("Zeus", "Apollo"),
+        ("Zeus", "Artemis"),
+        ("Zeus", "Athena"),
+        ("Zeus", "Hermes"),
+        ("Zeus", "Dionysus"),
+        ("Zeus", "Aphrodite"),
+        ("Hera", "Hephaestus"),
+
+        # Heroes
+        ("Zeus", "Heracles"),
+        ("Zeus", "Perseus"),
+        ("Poseidon", "Theseus"),
+        ("Hermes", "Odysseus"),
+        ("Peleus", "Achilles"),
+        ("Aeson", "Jason"),
+        ("Apollo", "Orpheus"),
+    ]
+
+    for parent, child in relations:
+        dot.edge(parent, child)
+
+    # Display SVG
+    svg = dot.pipe().decode("utf-8")
+    st.write(svg, unsafe_allow_html=True)
+
 
 # End of app
