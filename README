@@ -1,31 +1,70 @@
-# AI Museum Curator — Greek Mythology Edition
-
-An interactive Streamlit app that fetches real artwork metadata from The Metropolitan Museum of Art (MET) and (optionally) uses OpenAI to generate curator-style explanations. The app focuses on Greek mythology: gods, titans, heroes, and mythic creatures.
-
----
-
-## Features
-
-- Browse Greek figures (Olympians, Titans, Primordials, Heroes, Creatures).  
-- Fetch **real artworks** from the MET Open API (only artworks with downloadable images are shown).  
-- Works & Analysis: left–right structured view with large image and a museum-style information panel.  
-- AI-assisted content (optional): overview, historical context, iconography — requires an OpenAI API key.  
-- Interactive Art Zone: myth identifier & archetype mapping powered by AI.  
-- Mythic Lineages: genealogy visualization (treemap) to present family/lineage structure.
+# Greek Mythology Art Explorer  
+A Streamlit-based interactive application for exploring Greek mythology through  
+**real artworks from The MET Museum**, **big-data visualizations**,  
+**interactive personality tests**, and **genealogy visualization**.
 
 ---
 
-## Quick Start
+## 🌟 Features
 
-1. Clone or download this repository and place files in a folder:
-   - `app.py`
-   - `requirements.txt`
-   - `README.md`
+### 1. **Image-first Gallery (Intelligent Entry Flow)**
+- The homepage displays high-quality images of major Greek mythological figures.
+- Clicking an image leads to:
+  - Key artworks  
+  - Story overview  
+  - MET object links  
+  - Optimized layout (image → summary → details)
 
-2. Create and activate a virtual environment (recommended):
+---
+
+### 2. **Big Data Analysis Module**
+Analyze thousands of MET artworks related to any mythological figure.
+
+Includes 8 analytical dimensions:
+
+1. **Timeline Distribution** (objectBeginDate)  
+2. **Medium / Material**  
+3. **Geographic Culture**  
+4. **Classification Types**  
+5. **Tags & Themes**  
+6. **Greek vs Roman Origin**  
+7. **Vase-painting Narratives**  
+8. **Acquisition Year Timeline**
+
+All charts are interactive Plotly visualizations.
+
+---
+
+### 3. **Interactive Tests**
+Two psychology-inspired tests:
+
+- **Which Greek Deity Are You?**  
+  (symbolism + temperament)
+- **Mythological Archetype (Jungian-inspired)**  
+  (leader / creator / strategist / seeker / protector)
+
+Each test gives:
+- Personality interpretation  
+- Mythological symbolism  
+- Recommended art themes
+
+---
+
+### 4. **Greek Mythology Genealogy (Treemap Visualization)**
+A simplified hierarchy of:
+- Primordials  
+- Titans  
+- Olympians  
+- Heroes  
+- Creatures  
+
+Presented as a **color-coded Plotly treemap**.
+
+---
+
+## 🛠 Installation
+
+### 1. Clone the project
 ```bash
-python -m venv venv
-# mac / linux
-source venv/bin/activate
-# windows (PowerShell)
-venv\Scripts\Activate.ps1
+git clone https://github.com/yourname/greek-mythology-art-explorer
+cd greek-mythology-art-explorer
