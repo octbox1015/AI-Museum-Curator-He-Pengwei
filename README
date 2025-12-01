@@ -1,30 +1,31 @@
 # AI Museum Curator — Greek Mythology Edition
 
-This Streamlit app allows users to explore Greek gods, heroes, and mythic creatures through major artworks, manuscripts, books, and cultural artifacts. Optional AI features provide curator-level explanations.
+An interactive Streamlit app that fetches real artwork metadata from The Metropolitan Museum of Art (MET) and (optionally) uses OpenAI to generate curator-style explanations. The app focuses on Greek mythology: gods, titans, heroes, and mythic creatures.
+
+---
 
 ## Features
 
-### Home
-- Paste your OpenAI API Key to enable AI features.
-- Step-by-step guide for exploring Greek mythology content and artworks.
-- Instructions for viewing detailed work cards with AI-generated descriptions.
+- Browse Greek figures (Olympians, Titans, Primordials, Heroes, Creatures).  
+- Fetch **real artworks** from the MET Open API (only artworks with downloadable images are shown).  
+- Works & Analysis: left–right structured view with large image and a museum-style information panel.  
+- AI-assisted content (optional): overview, historical context, iconography — requires an OpenAI API key.  
+- Interactive Art Zone: myth identifier & archetype mapping powered by AI.  
+- Mythic Lineages: genealogy visualization (treemap) to present family/lineage structure.
 
-### Greek Deities / Heroes / Creatures
-- Search or select mythic figures.
-- Default display of the most famous works related to the figure (artworks, manuscripts, books).
-- Works are shown in card/grid style with expandable details.
-- AI-generated overview, historical/artistic context, and iconography.
+---
 
-### Interactive Art Zone
-- **Myth-based**: Describe a scene or motif, get the most likely Greek myth character.
-- **Personality Archetype Matcher**: Short quiz mapping you to a Greek myth archetype.
-- Category selection presented as clear small cards.
+## Quick Start
 
-### Big Data Analysis
-- **Time dimension**: Work distribution by century/era, artist active period trends.
-- **Medium/type dimension**: Cross-medium distribution, material analysis.
-- **Style/genre**: Artistic style distribution, association of style with mythic themes.
+1. Clone or download this repository and place files in a folder:
+   - `app.py`
+   - `requirements.txt`
+   - `README.md`
 
-### Notes
-- Works failing to load (HTTP 404 or other errors) are automatically skipped.
-- Interactive and AI features require an OpenAI API key.
+2. Create and activate a virtual environment (recommended):
+```bash
+python -m venv venv
+# mac / linux
+source venv/bin/activate
+# windows (PowerShell)
+venv\Scripts\Activate.ps1
