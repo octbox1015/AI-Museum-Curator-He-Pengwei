@@ -555,4 +555,3 @@ elif page == "Mythic Lineages":
         st.write("Olympians: Zeus, Hera, Poseidon, Hades, Demeter, Hestia, Athena, Apollo, Artemis, Ares, Hermes, Dionysus, Aphrodite, Hephaestus")
         st.write("Heroes: Heracles, Perseus, Theseus, Odysseus, Achilles, Jason")
         st.write("Creatures: Medusa, Cyclops, Minotaur, Sirens")
-
