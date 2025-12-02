@@ -1,6 +1,11 @@
-streamlit
-requests
-plotly
-pandas
-numpy
-Pillow
+streamlit==1.36.0
+requests==2.31.0
+pillow==10.3.0
+plotly==5.20.0
+pandas==2.2.2
+
+# OpenAI 可选（已兼容旧版 API）
+openai==0.28.1
+
+# 下面两个库用于稳定 JSON / 类型支持（属于依赖）
+typing_extensions==4.10.0
