@@ -1,4 +1,4 @@
-# app.py
+# app.py — Final stable version for AI Museum Curator (Greek Myth Edition)
 import streamlit as st
 import requests
 from io import BytesIO
@@ -8,18 +8,16 @@ import math
 import time
 import collections
 import plotly.express as px
-from typing import List, Dict
+from typing import List, Dict, Optional
 
-# Optional OpenAI (only used if user provides API key on Home)
+# Optional OpenAI client (only used if user provides API key on Home)
 try:
     import openai
 except Exception:
     openai = None
 
-# ---------------- Page config ----------------
+# ---------------- Page setup ----------------
 st.set_page_config(page_title="AI Museum Curator — Greek Myth", layout="wide")
-# small header area (title shown on Home page too)
-st.sidebar.image("https://raw.githubusercontent.com/your-repo-placeholder/placeholder/main/icon.png" if False else "", width=1)  # placeholder to keep sidebar height consistent if desired
 
 # ---------------- Constants ----------------
 MET_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search"
@@ -39,9 +37,10 @@ FIXED_BIOS = {
     "Perseus": "Perseus is the hero who beheaded Medusa and rescued Andromeda; often shown with winged sandals and reflecting shield."
 }
 
-# ---------------- MET helpers ----------------
+# ---------------- Utilities: MET API ----------------
 @st.cache_data(show_spinner=False)
 def met_search_ids(query: str, max_results: int = 300) -> List[int]:
+    """Search MET for objectIDs. Returns empty list on error."""
     try:
         r = requests.get(MET_SEARCH, params={"q": query, "hasImages": True}, timeout=12)
         r.raise_for_status()
@@ -52,6 +51,7 @@ def met_search_ids(query: str, max_results: int = 300) -> List[int]:
 
 @st.cache_data(show_spinner=False)
 def met_get_object_cached(object_id: int) -> Dict:
+    """Fetch MET object metadata. Returns {} on error."""
     try:
         r = requests.get(MET_OBJECT.format(object_id), timeout=12)
         r.raise_for_status()
@@ -59,9 +59,10 @@ def met_get_object_cached(object_id: int) -> Dict:
     except Exception:
         return {}
 
-def fetch_image_from_meta(meta: Dict):
+def fetch_image_from_meta(meta: Dict, prefer_small: bool = True) -> Optional[Image.Image]:
+    """Try to load an image from metadata, returning PIL Image or None."""
     candidates = []
-    if meta.get("primaryImageSmall"):
+    if prefer_small and meta.get("primaryImageSmall"):
         candidates.append(meta["primaryImageSmall"])
     if meta.get("primaryImage"):
         candidates.append(meta["primaryImage"])
@@ -90,7 +91,7 @@ def generate_aliases(name: str) -> List[str]:
     aliases += [f"{name} myth", f"{name} greek"]
     return list(dict.fromkeys(aliases))
 
-# ---------------- OpenAI wrappers (optional) ----------------
+# ---------------- OpenAI helpers (optional; robust to missing client) ----------------
 def get_openai_client():
     key = st.session_state.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not key or openai is None:
@@ -100,7 +101,7 @@ def get_openai_client():
 
 def chat_complete_simple(client, prompt: str, max_tokens: int = 350):
     if client is None:
-        return "OpenAI not configured. Paste API key on Home to enable."
+        return "OpenAI not configured. Paste API key on Home to enable AI features."
     try:
         resp = client.ChatCompletion.create(
             model="gpt-4o-mini",
@@ -108,13 +109,9 @@ def chat_complete_simple(client, prompt: str, max_tokens: int = 350):
             max_tokens=max_tokens,
             temperature=0.2
         )
-        return resp.choices[0].message.content
+        return getattr(resp.choices[0].message, "content", str(resp))
     except Exception as e:
         return f"OpenAI error: {e}"
-
-def ai_expand_bio(client, name, base):
-    prompt = f"Expand this short bio about {name} into a concise museum-friendly 3-paragraph introduction:\n\n{base}"
-    return chat_complete_simple(client, prompt, max_tokens=450)
 
 def ai_artwork_overview(client, meta):
     title = meta.get("title") or meta.get("objectName") or "Untitled"
@@ -129,9 +126,9 @@ def ai_artwork_iconography(client, meta):
     prompt = f"Analyze the iconography and mythological symbols in this artwork using metadata: {meta}"
     return chat_complete_simple(client, prompt, max_tokens=350)
 
-# ---------------- Big Data extraction ----------------
+# ---------------- Big Data helpers ----------------
 @st.cache_data(show_spinner=False)
-def build_dataset_from_ids(object_ids: List[int]) -> List[Dict]:
+def build_dataset_from_ids_cached(object_ids: List[int]) -> List[Dict]:
     dataset = []
     for oid in object_ids:
         meta = met_get_object_cached(oid)
@@ -148,10 +145,10 @@ def extract_bigdata_stats(dataset: List[Dict]):
     vase_examples = []
     acquisitions = []
     greek_vs_roman = {"greek":0, "roman":0, "other":0}
-
     import re
+
     for meta in dataset:
-        # year
+        # year extraction (prefer objectBeginDate)
         y = meta.get("objectBeginDate")
         if isinstance(y, int):
             years.append(y)
@@ -163,19 +160,23 @@ def extract_bigdata_stats(dataset: List[Dict]):
                     years.append(int(m.group(0)))
                 except:
                     pass
+
         # medium
         medium = (meta.get("medium") or "").strip()
         if medium:
             mediums.append(medium.lower())
+
         # culture
         culture = (meta.get("culture") or "").strip()
         if culture:
             cultures.append(culture)
+
         # classification
         cl = (meta.get("classification") or "").strip()
         if cl:
             classifications.append(cl)
-        # tags
+
+        # tags list
         t = meta.get("tags") or []
         if isinstance(t, list):
             for item in t:
@@ -185,11 +186,13 @@ def extract_bigdata_stats(dataset: List[Dict]):
                     term = str(item)
                 if term:
                     tags_flat.append(term.lower())
-        # vase examples heuristics
+
+        # vase heuristics
         title = (meta.get("title") or meta.get("objectName") or "")
         if any(k in (cl or "").lower() for k in ["vase","vessel","amphora","pottery","ceramic","terracott"]) or any(k in (medium or "").lower() for k in ["vase","ceramic","terracotta","earthenware"]):
             vase_examples.append(title or cl or medium)
-        # acquisition (accessionYear)
+
+        # acquisition
         acc = meta.get("accessionYear")
         if isinstance(acc, int):
             acquisitions.append(acc)
@@ -199,7 +202,8 @@ def extract_bigdata_stats(dataset: List[Dict]):
                     acquisitions.append(int(acc))
             except:
                 pass
-        # greek vs roman heuristic
+
+        # greek vs roman heuristic (simple)
         period = (meta.get("period") or "").lower()
         title_low = title.lower()
         if "roman" in period or "roman" in title_low:
@@ -251,7 +255,7 @@ This app supports **image-first browsing**, curator-style AI analysis (optional)
             st.warning("Please paste a valid OpenAI API key.")
     st.markdown("---")
     st.markdown("**Data source:** The Metropolitan Museum of Art Open Access API (MET).")
-    st.markdown("If you want the course slides reference included on Home, place the PDF under `/mnt/data/` and I can link it.")
+    st.info("Tip: first time fetching many MET records may be slow — caching reduces subsequent runtime.")
 
 # ---------------- GREEK FIGURES ----------------
 elif page == "Greek Figures":
@@ -267,18 +271,18 @@ elif page == "Greek Figures":
     if st.button("Fetch related works (images)", key="gf_fetch"):
         aliases = generate_aliases(selected)
         all_ids = []
-        prog = st.progress(0)
+        progress = st.progress(0)
         for i, a in enumerate(aliases):
             ids = met_search_ids(a, max_results=max_results)
             for oid in ids:
                 if oid not in all_ids:
                     all_ids.append(oid)
-            prog.progress(int((i+1)/len(aliases)*100))
-        prog.empty()
-        st.success(f"Found {len(all_ids)} candidate works. Loading images...")
+            progress.progress(int((i+1)/len(aliases)*100))
+        progress.empty()
+        st.success(f"Found {len(all_ids)} candidate works. Loading images (may take a while)...")
 
         thumbs = []
-        prog = st.progress(0)
+        prog2 = st.progress(0)
         total = max(1, len(all_ids))
         for i, oid in enumerate(all_ids):
             meta = met_get_object_cached(oid)
@@ -287,9 +291,10 @@ elif page == "Greek Figures":
                 if img:
                     thumbs.append((oid, meta, img))
             if i % 10 == 0:
-                prog.progress(min(100, int((i+1)/total*100)))
-            time.sleep(0.005)
-        prog.empty()
+                prog2.progress(min(100, int((i+1)/total*100)))
+            # tiny sleep to avoid burst network
+            time.sleep(0.002)
+        prog2.empty()
         st.session_state["thumbs"] = thumbs
         st.success(f"Loaded {len(thumbs)} artworks with images.")
 
@@ -303,18 +308,24 @@ elif page == "Greek Figures":
         start = (page_idx-1)*per_page
         page_items = thumbs[start:start+per_page]
 
+        # 3-column grid for thumbnails
         cols = st.columns(3)
         for i, (oid, meta, img) in enumerate(page_items):
             col = cols[i % 3]
             with col:
-                st.image(img.resize((300,300)), use_column_width=False)
+                try:
+                    thumb_img = img.resize((300,300))
+                    st.image(thumb_img, use_column_width=False)
+                except Exception:
+                    st.image(None)
                 st.markdown(f"**{meta.get('title') or meta.get('objectName') or 'Untitled'}**")
                 st.write(meta.get("artistDisplayName") or "Unknown")
                 st.write(meta.get("objectDate") or "—")
                 st.write(meta.get("medium") or "—")
                 if st.button("Analyze", key=f"analyze_{oid}"):
+                    # set selection and go to Works & Analysis
                     st.session_state["selected_artwork"] = oid
-                    # navigate to Works & Analysis
+                    # navigate
                     st.experimental_set_query_params(_page="works")
                     st.experimental_rerun()
 
@@ -331,7 +342,6 @@ elif page == "Works & Analysis":
         else:
             # Back button
             if st.button("← Back to gallery", key="back_gallery"):
-                # clear selection and go back
                 st.session_state.pop("selected_artwork", None)
                 st.experimental_set_query_params()
                 st.experimental_rerun()
@@ -340,13 +350,14 @@ elif page == "Works & Analysis":
             with left:
                 img = fetch_image_from_meta(meta)
                 if img:
-                    max_w = 850
+                    max_w = 900
                     w,h = img.size
                     if w > max_w:
                         img = img.resize((max_w, int(h*(max_w/w))))
                     st.image(img, use_column_width=False)
                 else:
-                    st.info("Image not available.")
+                    st.info("Image not available for this object.")
+
             with right:
                 st.subheader(meta.get("title") or meta.get("objectName") or "Untitled")
                 st.write(f"**Object ID:** {art_id}")
@@ -360,55 +371,50 @@ elif page == "Works & Analysis":
                 st.markdown("---")
                 client = get_openai_client()
                 st.markdown("### Curator AI (optional)")
-                if client and st.button("Generate AI analysis", key=f"gen_ai_{art_id}"):
-                    with st.spinner("Generating overview..."):
-                        st.write(ai_artwork_overview(client, meta))
-                    with st.spinner("Generating historical context..."):
-                        st.write(ai_artwork_context(client, meta))
-                    with st.spinner("Analyzing iconography..."):
-                        st.write(ai_artwork_iconography(client, meta))
+                if client:
+                    if st.button("Generate AI analysis", key=f"gen_ai_{art_id}"):
+                        with st.spinner("Generating overview..."):
+                            try:
+                                st.write(ai_artwork_overview(client, meta))
+                            except Exception as e:
+                                st.error(f"AI overview error: {e}")
+                        with st.spinner("Generating historical context..."):
+                            try:
+                                st.write(ai_artwork_context(client, meta))
+                            except Exception as e:
+                                st.error(f"AI context error: {e}")
+                        with st.spinner("Analyzing iconography..."):
+                            try:
+                                st.write(ai_artwork_iconography(client, meta))
+                            except Exception as e:
+                                st.error(f"AI iconography error: {e}")
                 else:
                     st.write("(Enable OpenAI API key on Home and click 'Generate AI analysis')")
 
 # ---------------- ART DATA (Big Data Analysis) ----------------
 elif page == "Art Data":
     st.header("Art Data — Big Data Analysis")
-    st.markdown("""
-This page computes data-driven visualizations for artworks related to a selected mythic figure.
-It covers 8 dimensions: timeline, medium, geography/culture, classification, tags, Greek vs Roman heuristic, vase examples, and acquisition years.
-    """)
+    st.markdown("Compute data-driven visualizations for artworks related to a selected mythic figure.")
 
     figure_for_analysis = st.selectbox("Choose a figure to analyze:", MYTH_LIST, key="ad_figure")
     aliases = generate_aliases(figure_for_analysis)
     max_results = st.slider("Max MET search results per alias", 50, 800, 300, 50, key="ad_max")
 
     if st.button("Fetch dataset & analyze", key="ad_fetch"):
-        # 1) gather IDs across aliases
         all_ids = []
-        prog = st.progress(0)
+        p = st.progress(0)
         for i, a in enumerate(aliases):
             ids = met_search_ids(a, max_results=max_results)
             for oid in ids:
                 if oid not in all_ids:
                     all_ids.append(oid)
-            prog.progress(int((i+1)/len(aliases)*100))
-        prog.empty()
+            p.progress(int((i+1)/len(aliases)*100))
+        p.empty()
         st.success(f"Found {len(all_ids)} candidate works. Fetching metadata...")
 
-        # 2) fetch metadata
-        metas = []
-        prog = st.progress(0)
-        total = max(1, len(all_ids))
-        for i, oid in enumerate(all_ids):
-            m = met_get_object_cached(oid)
-            if m:
-                metas.append(m)
-            if i % 10 == 0:
-                prog.progress(min(100, int((i+1)/total*100)))
-            time.sleep(0.003)
-        prog.empty()
+        metas = build_dataset_from_ids_cached(all_ids)
         st.session_state["analysis_dataset"] = metas
-        st.success(f"Built dataset with {len(metas)} metadata records (may include items lacking some fields).")
+        st.success(f"Built dataset with {len(metas)} records.")
 
     dataset = st.session_state.get("analysis_dataset", None)
     if not dataset:
@@ -417,8 +423,8 @@ It covers 8 dimensions: timeline, medium, geography/culture, classification, tag
         st.success(f"Analyzing {len(dataset)} records.")
         stats = extract_bigdata_stats(dataset)
 
-        # 1. Timeline
-        st.markdown("### 1. Timeline — Artwork Dates (objectBeginDate / heuristics)")
+        # 1 Timeline
+        st.markdown("#### 1. Timeline — Artwork Dates (objectBeginDate / heuristics)")
         years = stats['years']
         if years:
             fig = px.histogram(x=years, nbins=40, labels={'x':'Year','y':'Count'}, title="Artwork Time Distribution")
@@ -426,8 +432,8 @@ It covers 8 dimensions: timeline, medium, geography/culture, classification, tag
         else:
             st.info("No reliable year data available for this dataset.")
 
-        # 2. Medium
-        st.markdown("### 2. Medium / Material Distribution")
+        # 2 Medium
+        st.markdown("#### 2. Medium / Material Distribution")
         mcounts = stats['mediums']
         if mcounts:
             top_mediums = mcounts.most_common(20)
@@ -436,8 +442,8 @@ It covers 8 dimensions: timeline, medium, geography/culture, classification, tag
         else:
             st.info("No medium data available.")
 
-        # 3. Geography / Culture
-        st.markdown("### 3. Geography / Culture")
+        # 3 Geography
+        st.markdown("#### 3. Geography / Culture")
         cultures = stats['cultures']
         if cultures:
             topc = cultures.most_common(20)
@@ -446,8 +452,8 @@ It covers 8 dimensions: timeline, medium, geography/culture, classification, tag
         else:
             st.info("No culture/geography data available.")
 
-        # 4. Classification
-        st.markdown("### 4. Classification (object types)")
+        # 4 Classification
+        st.markdown("#### 4. Classification")
         cl = stats['classifications']
         if cl:
             topcl = cl.most_common(20)
@@ -456,8 +462,8 @@ It covers 8 dimensions: timeline, medium, geography/culture, classification, tag
         else:
             st.info("No classification data available.")
 
-        # 5. Tags / Themes
-        st.markdown("### 5. Tags / Themes (top 20)")
+        # 5 Tags/Themes
+        st.markdown("#### 5. Tags / Themes (top 20)")
         tags = stats['tags']
         if tags:
             toptags = tags.most_common(20)
@@ -466,22 +472,22 @@ It covers 8 dimensions: timeline, medium, geography/culture, classification, tag
         else:
             st.info("No useful tags found (MET tagging is inconsistent).")
 
-        # 6. Greek vs Roman
-        st.markdown("### 6. Greek vs Roman vs Other (heuristic detection)")
+        # 6 Greek vs Roman
+        st.markdown("#### 6. Greek vs Roman vs Other (heuristic detection)")
         gvr = stats['greek_vs_roman']
         fig6 = px.pie(values=[gvr['greek'], gvr['roman'], gvr['other']], names=['Greek','Roman','Other'], title="Greek vs Roman vs Other (heuristic)")
         st.plotly_chart(fig6, use_container_width=True)
 
-        # 7. Vase examples
-        st.markdown("### 7. Vase / Vessel examples (raw titles / classifications)")
+        # 7 Vase examples
+        st.markdown("#### 7. Vase / Vessel examples (raw titles/classifications)")
         if stats['vase_examples']:
             for i, ex in enumerate(stats['vase_examples'][:30]):
                 st.write(f"{i+1}. {ex}")
         else:
             st.info("No obvious vase/vessel items detected in this dataset.")
 
-        # 8. Acquisition timeline
-        st.markdown("### 8. Acquisition years (accessionYear)")
+        # 8 Acquisition timeline
+        st.markdown("#### 8. Acquisition years (accessionYear)")
         acq = stats['acquisitions']
         if acq:
             fig7 = px.histogram(x=acq, nbins=30, labels={'x':'Accession Year','y':'Count'}, title="Museum Accession Years")
@@ -489,7 +495,7 @@ It covers 8 dimensions: timeline, medium, geography/culture, classification, tag
         else:
             st.info("No accessionYear data available.")
 
-        # Export cleaned CSV
+        # CSV export
         if st.button("Export cleaned dataset (CSV)", key="export_csv_ad"):
             import pandas as pd
             rows = []
@@ -513,10 +519,7 @@ It covers 8 dimensions: timeline, medium, geography/culture, classification, tag
 # ---------------- INTERACTIVE TESTS ----------------
 elif page == "Interactive Tests":
     st.header("Interactive Tests — Personality & Myth Archetypes")
-    st.markdown("""
-These quizzes map your choices to mythic roles and provide interpretive readings and recommended artwork themes.
-They are meant for reflection and classroom/demo use (not a clinical assessment).
-    """)
+    st.markdown("Two short interactive quizzes mapping responses to mythic archetypes with art-themed suggestions.")
 
     # Test 1
     st.subheader("Which Greek Deity Are You? (short)")
@@ -550,7 +553,6 @@ They are meant for reflection and classroom/demo use (not a clinical assessment)
         st.write(f"- {themes}")
 
     st.markdown("---")
-
     # Test 2
     st.subheader("Personality Archetype — Jungian-inspired")
     s1 = st.selectbox("Preferred role:", ["Leader","Supporter","Strategist","Creator"], key="pt1")
@@ -560,20 +562,20 @@ They are meant for reflection and classroom/demo use (not a clinical assessment)
         if s2 == "Wisdom":
             arche = "The Sage — Athena / Prometheus"
             desc = ("You seek knowledge and structure. You are reflective and value the dissemination of insight. "
-                    "Artistic suggestions: iconography emphasizing wisdom—owl, scrolls, teaching scenes.")
+                    "Art suggestions: owl, scrolls, teaching scenes.")
         elif s2 == "Glory":
             arche = "The Warrior — Ares / Achilles"
-            desc = ("You are energized by challenge and honor; your art interests include battle scenes, heroic moments, and trophies.")
+            desc = ("You are energized by challenge and honor; your art interests include battle scenes and heroic trophies.")
         elif s2 == "Pleasure":
             arche = "The Seeker — Dionysus / Pan"
-            desc = ("You prioritize experience and emotional richness; visual themes include feasting, music, and ecstatic gatherings.")
+            desc = ("You prioritize experience and emotional richness; visual themes include feasting, music, ecstatic gatherings.")
         else:
             arche = "The Guardian — Zeus / Hera"
-            desc = ("You prioritize order, duty, and social cohesion; relevant art includes ritual objects, thrones, and communal ceremonies.")
+            desc = ("You prioritize order, duty, and social cohesion; relevant art includes ritual objects and thrones.")
         st.markdown(f"### Archetype: **{arche}**")
         st.write(desc)
         st.markdown("**Suggested artwork themes:**")
-        st.write("- heroic narratives\n- ritual/ceremonial objects\n- deity portraits\n- symbolic animals and sacred emblems")
+        st.write("- heroic narratives\n- ceremonial objects\n- deity portraits\n- symbolic animals and sacred emblems")
 
 # ---------------- MYTHIC LINEAGES ----------------
 elif page == "Mythic Lineages":
@@ -617,9 +619,18 @@ elif page == "Mythic Lineages":
             return "Creatures"
         return "Greek Mythology"
     color_map = {label: category_color[category_for(label)] for label in labels}
-    fig = px.treemap(names=labels, parents=parents, color=labels, color_discrete_map=color_map, title="Genealogy of Greek Mythology (Simplified)")
-    fig.update_layout(margin=dict(t=40, l=0, r=0, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+
+    # Build treemap safely
+    try:
+        fig = px.treemap(names=labels, parents=parents, color=labels, color_discrete_map=color_map, title="Genealogy of Greek Mythology (Simplified)")
+        fig.update_layout(margin=dict(t=40, l=0, r=0, b=0))
+        st.plotly_chart(fig, use_container_width=True)
+    except Exception as e:
+        st.error("Treemap rendering failed; falling back to text list.")
+        st.write("Primordials: Chaos, Gaia, Uranus")
+        st.write("Titans: Cronus, Rhea, Oceanus, Hyperion")
+        st.write("Olympians: Zeus, Hera, Poseidon, Hades, Demeter, Hestia, Athena, Apollo, Artemis, Ares, Hermes, Dionysus, Aphrodite, Hephaestus")
+        st.write("Heroes: Heracles, Perseus, Theseus, Odysseus, Achilles, Jason")
+        st.write("Creatures: Medusa, Cyclops, Minotaur, Sirens")
 
 # ---------------- End of app ----------------
-
