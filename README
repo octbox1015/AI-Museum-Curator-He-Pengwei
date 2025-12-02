@@ -1,22 +1,175 @@
-# 🏛️ Mythic Art Explorer  
-**Explore Greek Mythology Through Real MET Museum Artworks + AI Curation + Data Analytics**
-
-This app uses **The Metropolitan Museum of Art Open Access API** to fetch REAL artworks related to Greek mythological figures, and enhances them with:
-
-- 📌 **Pinterest-style waterfall gallery**
-- 📌 **Modal detail view with next/previous navigation**
-- 📌 **Optional AI curator commentary (OpenAI API optional)**
-- 📌 **Big Data analysis of MET metadata** (timelines, mediums, tags, culture, acquisitions)
-- 📌 **Mythic personality test (16-question)**
-- 📌 **Interactive myth genealogy network visualization**
-
-Designed for **streamlit.io cloud hosting**, compatible with class presentations, data-art projects, or personal research.
+# Mythic Art Explorer
+A Streamlit-based interactive digital museum that connects Greek mythology with real artworks from The Metropolitan Museum of Art (MET). The app integrates MET Open Access API data, AI-generated curatorial analysis, and multiple visualization tools.
 
 ---
 
-## 📦 Installation (Local)
+## Overview
 
+Mythic Art Explorer allows users to explore Greek gods, heroes, mythological creatures, and artistic representations. It combines three components:
+
+1. Real museum data  
+2. Big-data visualization  
+3. AI-driven art interpretation and personality analysis  
+
+The result is a modern, research-friendly, visually compelling digital humanities tool.
+
+---
+
+## Key Features
+
+### 1. Greek Figures & Artworks
+- Choose a mythological figure (e.g., Zeus, Athena, Apollo, Medusa).
+- Fetches real MET artworks through the Open Access API.
+- Displays artworks in a waterfall-style gallery.
+- Clicking an artwork opens a modal:
+  - High-resolution image  
+  - Metadata (artist, date, culture, medium)  
+  - AI curator-style interpretation  
+
+---
+
+### 2. Works & Analysis (Curatorial Deep Dive)
+For each artwork:
+- Fullscreen viewer
+- Organized metadata
+- AI-generated analysis:
+  - Iconography
+  - Symbolism
+  - Myth narrative context  
+  - Artistic techniques and meaning
+
+---
+
+### 3. Mythic Lineages (Genealogy Visualization)
+Interactive network visualization using Pyvis:
+- Primordial deities  
+- Titans  
+- Olympian gods  
+- Heroes  
+- Creatures  
+
+Nodes are draggable, zoomable, and color-coded by category.
+
+---
+
+### 4. Interactive Tests
+Two personality assessments combining mythology with psychology:
+- Multi-question system  
+- Assigns archetypes (Jungian-inspired)  
+- Includes personalized interpretation and related art themes  
+
+---
+
+### 5. Art Data Analysis (Big Data Mode)
+Large-scale dataset visualization using real MET records:
+- Artwork date timeline
+- Medium/material distribution
+- Culture/region charts
+- Classification distribution
+- Theme tag frequency
+- Acquisition year patterns
+
+Powered by Plotly.
+
+---
+
+## File Structure
+
+Mythic-Art-Explorer/
+│
+├── app.py
+├── requirements.txt
+├── README.md
+│
+└── static/ (optional)
+├── icon.png
+├── styles.css
+└── mock_assets/
+
+yaml
+复制代码
+
+---
+
+## Installation
+
+### 1. Clone the repository
 ```bash
+git clone https://github.com/your-username/Mythic-Art-Explorer.git
+cd Mythic-Art-Explorer
+2. Create virtual environment
+bash
+复制代码
+python3 -m venv venv
+source venv/bin/activate   # macOS / Linux
+venv\Scripts\activate      # Windows
+3. Install dependencies
+bash
+复制代码
 pip install -r requirements.txt
+4. Run the application
+bash
+复制代码
 streamlit run app.py
+Deploy on Streamlit Cloud
+Push this project to GitHub.
 
+Go to: https://streamlit.io/cloud
+
+Click "New app".
+
+Select the repository.
+
+Choose:
+
+app.py as the entry file
+
+Python 3.10 or 3.11 environment
+
+Deploy.
+
+Data Source
+This project uses the following public dataset:
+
+The Metropolitan Museum of Art Collection API (Open Access)
+https://metmuseum.github.io/
+
+All artworks used are Open Access and free for educational use.
+
+Technologies Used
+Streamlit
+
+Pyvis (interactive network graph)
+
+Plotly (data visualization)
+
+Requests
+
+Pillow
+
+Pandas
+
+MET Open Access API
+
+Example Use Cases
+Art history research
+
+Museum studies presentations
+
+Greek mythology education
+
+Digital humanities teaching
+
+Interactive online exhibitions
+
+AI + culture demonstrations
+
+License
+This project is released under the MIT License.
+
+MET artwork metadata and Open Access images belong to The Metropolitan Museum of Art.
+
+Credits
+Developer: He Pengwei
+AI Analysis: ChatGPT
+Data Source: The Metropolitan Museum of Art (Open Access)
