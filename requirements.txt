@@ -1,9 +1,8 @@
 streamlit==1.38.0
-pandas==2.2.2
-numpy==1.26.4
-requests==2.31.0
-plotly==5.22.0
-networkx==3.2.1
+requests
+Pillow
+plotly
+pandas
 pyvis==0.3.2
-Pillow==10.3.0
-scikit-learn==1.4.2
+networkx==2.8.8
+numpy
