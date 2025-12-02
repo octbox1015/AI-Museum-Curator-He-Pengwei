@@ -1,78 +1,77 @@
-# Mythic Art Explorer
-A Streamlit-based interactive digital museum that connects Greek mythology with real artworks from The Metropolitan Museum of Art (MET). The app integrates MET Open Access API data, AI-generated curatorial analysis, and multiple visualization tools.
+# 🎨 Mythic Art Explorer
+
+An interactive Streamlit-based digital museum that connects Greek mythology with real artworks from The Metropolitan Museum of Art (MET).  
+The app integrates MET’s Open Access API, big-data visualization, and AI-powered curatorial interpretation.
 
 ---
 
-## Overview
+## 🌟 Overview
 
-Mythic Art Explorer allows users to explore Greek gods, heroes, mythological creatures, and artistic representations. It combines three components:
+**Mythic Art Explorer** allows users to explore Greek gods, heroes, mythological creatures, and artistic representations through:
 
-1. Real museum data  
-2. Big-data visualization  
-3. AI-driven art interpretation and personality analysis  
+- Real museum dataset  
+- Big-data visualization (Plotly)  
+- Interactive network genealogy (Pyvis)  
+- AI-generated curator analysis  
+- Psychological myth archetype tests  
 
-This creates a modern, research-friendly, visually compelling digital humanities tool.
+The project serves as a modern digital-humanities tool for education, research, and interactive online exhibitions.
 
 ---
 
-## Key Features
+## 🏛 Key Features
 
-### 1. Greek Figures & Artworks
-- Select a mythological figure (e.g., Zeus, Athena, Apollo, Medusa).
-- Automatically fetches real artworks using the MET Open Access API.
-- Displays results in a Pinterest-style waterfall gallery.
-- Clicking an artwork opens a modal with:
+### **1. Greek Figures & Artworks**
+- Browse major mythological figures (Zeus, Athena, Apollo, Medusa, Achilles, etc.).
+- Retrieve artworks from **The MET Open Access API**.
+- Pinterest-style waterfall gallery.
+- Modal pop-up for each artwork with:
   - High-resolution image  
-  - Artist, date, culture, medium, dimensions  
-  - AI curator-style interpretation  
+  - Artist / date / culture / medium  
+  - AI curator analysis (optional)  
 
 ---
 
-### 2. Works & Analysis (Curatorial Deep Dive)
-For each artwork:
+### **2. Works & Analysis (Curatorial Deep Dive)**
+Each artwork includes:
 - Fullscreen viewer  
 - Structured metadata  
-- AI commentary including:  
-  - Iconography  
-  - Symbolism  
-  - Myth narrative context  
-  - Artistic style and interpretation  
+- AI-generated iconography, symbolism, and historical context  
 
 ---
 
-### 3. Mythic Lineages (Genealogy Visualization)
-Interactive network visualization generated with **Pyvis**, showing relationships among:
-
-- Primordial gods  
+### **3. Mythic Lineages (Genealogy Visualization)**
+Interactive **Pyvis network graph** showing relationships among:
+- Primordials  
 - Titans  
 - Olympians  
 - Heroes  
-- Mythical creatures  
+- Creatures  
 
 Nodes are draggable, zoomable, and color-coded by category.
 
 ---
 
-### 4. Interactive Tests
-Two psychological + mythological personality tests:
-- Multi-question system  
-- Assigns user archetypes (Jungian-inspired + mythology)  
-- Includes personalized interpretation and associated mythic themes  
+### **4. Interactive Tests**
+Two psychology-based mythological personality assessments:
+- Multi-question tests  
+- Assign archetypes (Jungian + Greek myth hybrid)  
+- Output includes interpretation and related artistic themes  
 
 ---
 
-### 5. Art Data Analysis (Big Data Mode)
-Dataset-level visualization using MET records:
-- Artwork timeline  
-- Medium/material distribution  
-- Geographic/cultural breakdown  
-- Classification frequency  
-- Tag/theme frequency  
-- Acquisition year trends  
+### **5. Art Data Analysis (Big-Data Mode)**
+Visual analysis built from MET dataset:
+- Timeline (artwork dates)
+- Medium & material distribution
+- Culture / region charts
+- Classification breakdown
+- Tag / theme frequencies
+- Acquisition year patterns
 
 Powered by **Plotly**.
 
 ---
 
-## File Structure
+## 📁 File Structure
 
