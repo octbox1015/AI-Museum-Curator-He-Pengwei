@@ -1,78 +1,22 @@
-# 🏛️ Mythic Art Explorer — Greek Figures & Artworks  
-**An interactive AI-powered museum experience using real artwork data from The Metropolitan Museum of Art (MET).**
+# 🏛️ Mythic Art Explorer  
+**Explore Greek Mythology Through Real MET Museum Artworks + AI Curation + Data Analytics**
 
-This app connects Greek mythology with real historical artworks.  
-You can browse mythic figures, view corresponding artworks, explore metadata, run big-data analysis, and generate AI curator explanations—directly inside Streamlit.
+This app uses **The Metropolitan Museum of Art Open Access API** to fetch REAL artworks related to Greek mythological figures, and enhances them with:
 
----
+- 📌 **Pinterest-style waterfall gallery**
+- 📌 **Modal detail view with next/previous navigation**
+- 📌 **Optional AI curator commentary (OpenAI API optional)**
+- 📌 **Big Data analysis of MET metadata** (timelines, mediums, tags, culture, acquisitions)
+- 📌 **Mythic personality test (16-question)**
+- 📌 **Interactive myth genealogy network visualization**
 
-## ✨ Features
-
-### 🔹 1. Mythic Art Explorer (Main Feature)
-Browse Greek deities, heroes, and mythic creatures.  
-For each figure, the app automatically pulls **real artworks from the MET Open Access API**, including:
-
-- Thumbnail grid (image-first)
-- Paginated browsing
-- Full modal detail viewer with:
-  - High-resolution artwork image
-  - Title, artist, date, medium, dimensions
-  - Link to MET official webpage
-  - **AI Curator Analysis (optional)**  
-    - Overview  
-    - Historical context  
-    - Iconography  
+Designed for **streamlit.io cloud hosting**, compatible with class presentations, data-art projects, or personal research.
 
 ---
 
-### 🔹 2. Art Data — Big Data Analysis
-Perform dataset-level analysis on hundreds of MET artworks:
-
-- Timeline (year distribution)
-- Medium / material frequency
-- Geographic / culture mapping
-- Classification categories
-- Tag / theme extraction
-- Greek vs Roman identification
-- Vase-painting recognition
-- Accession-year trends
-- CSV export
-
-All analyses generated using **Plotly**.
-
----
-
-### 🔹 3. Mythic Lineages — Genealogy Visualization
-A **treemap visualization** of:
-
-- Primordial gods
-- Titans
-- Olympians
-- Heroes
-- Creatures
-
-Color-coded, hierarchical, interactive.
-
----
-
-### 🔹 4. Interactive Tests (Fun Module)
-Two personality-based quizzes:
-
-- **Which Greek deity are you?**
-- **Mythological archetype test (Jungian-inspired)**
-
----
-
-### 🔹 5. High Stability & Optimized UX  
-- Image-first layout  
-- Modal artwork viewer  
-- Unique keys to avoid Streamlit duplication errors  
-- Caching for fast reload  
-- Graceful fallback when MET data unavailable  
-
----
-
-## 📦 Installation
+## 📦 Installation (Local)
 
 ```bash
 pip install -r requirements.txt
+streamlit run app.py
+
