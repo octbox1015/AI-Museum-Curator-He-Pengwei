@@ -4,4 +4,5 @@ pillow
 plotly
 openai==0.28.1
 pandas
+plotly
 
